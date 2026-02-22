@@ -26,7 +26,7 @@ export default function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [isFlushing, setIsFlushing] = useState(false);
   const [moderationMode, setModerationMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("kreis");
+  const [activeTab, setActiveTab] = useState<Tab>("log");
 
   const currentSpeaker = order[turnIndex];
   const nextSpeaker = order[(turnIndex + 1) % order.length];
@@ -255,7 +255,7 @@ export default function App() {
         <PlayPauseButton isPaused={isPaused} isFlushing={isFlushing} onClick={handlePause} />
       </header>
 
-      {activeTab === "kreis" ? (
+      {activeTab === "log" ? (
         <div className="circle-body">
           <main>
             <TranscriptView entries={entries} />

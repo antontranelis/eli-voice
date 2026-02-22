@@ -1,4 +1,4 @@
-export type Tab = "kreis" | "netz";
+export type Tab = "log" | "netz";
 
 interface TabNavProps {
   activeTab: Tab;
@@ -9,10 +9,10 @@ export function TabNav({ activeTab, onTabChange }: TabNavProps) {
   return (
     <nav className="tab-nav">
       <button
-        className={`tab-btn ${activeTab === "kreis" ? "active" : ""}`}
-        onClick={() => onTabChange("kreis")}
+        className={`tab-btn ${activeTab === "log" ? "active" : ""}`}
+        onClick={() => onTabChange("log")}
       >
-        Kreis
+        Log
       </button>
       <button
         className={`tab-btn ${activeTab === "netz" ? "active" : ""}`}
