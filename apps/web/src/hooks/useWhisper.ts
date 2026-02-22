@@ -13,6 +13,7 @@ export function useWhisper({
 }: UseWhisperOptions) {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0); // 0..1 normalized
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
@@ -73,8 +74,18 @@ export function useWhisper({
       ws.onerror = () => setIsConnected(false);
 
       processor.onaudioprocess = (e) => {
+        const float32 = e.inputBuffer.getChannelData(0);
+
+        // Compute RMS audio level (0..1)
+        let sum = 0;
+        for (let i = 0; i < float32.length; i++) {
+          sum += float32[i] * float32[i];
+        }
+        const rms = Math.sqrt(sum / float32.length);
+        // Scale up so normal speech is ~0.3-0.7, clamp to 1
+        setAudioLevel(Math.min(1, rms * 5));
+
         if (ws.readyState === WebSocket.OPEN) {
-          const float32 = e.inputBuffer.getChannelData(0);
           // Convert Float32 to Int16 PCM
           const int16 = new Int16Array(float32.length);
           for (let i = 0; i < float32.length; i++) {
@@ -142,5 +153,5 @@ export function useWhisper({
     };
   }, [stop]);
 
-  return { isRecording, isConnected, start, stop, flush };
+  return { isRecording, isConnected, audioLevel, start, stop, flush };
 }
