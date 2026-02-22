@@ -5,6 +5,8 @@ export function useInsights() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const counterRef = useRef(0);
+  const insightsRef = useRef(insights);
+  insightsRef.current = insights;
 
   const extractInsights = useCallback(
     async (speaker: string, text: string, entryIndex: number) => {
@@ -13,8 +15,8 @@ export function useInsights() {
 
       setIsExtracting(true);
       try {
-        // Send existing insights so server can detect connections
-        const existingForServer = insights.map((i) => ({
+        // Read current insights from ref (always fresh)
+        const existingForServer = insightsRef.current.map((i) => ({
           id: i.id,
           speaker: i.speaker,
           type: i.type,
@@ -54,7 +56,7 @@ export function useInsights() {
         setIsExtracting(false);
       }
     },
-    [insights]
+    []
   );
 
   return { insights, isExtracting, extractInsights };

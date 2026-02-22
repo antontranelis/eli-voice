@@ -140,6 +140,9 @@ export default function App() {
     await flush();
     setIsFlushing(false);
 
+    // Small delay to let React process the flushed transcript entry
+    await new Promise((r) => setTimeout(r, 50));
+
     // Extract insights from the just-finished speaker (fire-and-forget)
     const justFinished = orderRef.current[turnIndexRef.current];
     if (justFinished !== "Eli") {
