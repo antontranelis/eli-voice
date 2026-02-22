@@ -37,7 +37,7 @@ function getCircleRadius(n: number): number {
   return 240;
 }
 
-/** Position insight leaves radially around a person node */
+/** Position insight leaves in stacked rows outward from a person node */
 function getInsightPositions(
   cx: number,
   cy: number,
@@ -45,16 +45,18 @@ function getInsightPositions(
   baseAngle: number
 ): Array<{ x: number; y: number }> {
   const positions: Array<{ x: number; y: number }> = [];
-  const LEAF_DIST = 70;
-  const SPREAD = Math.min(Math.PI * 0.6, count * 0.35);
-  const startAngle = baseAngle - SPREAD / 2;
+  const FIRST_DIST = 80;
+  const ROW_SPACING = 40;
 
+  // Stack leaves outward along the base angle, offset alternating left/right
   for (let i = 0; i < count; i++) {
-    const angle =
-      count === 1 ? baseAngle : startAngle + (SPREAD * i) / (count - 1);
+    const row = i;
+    const dist = FIRST_DIST + row * ROW_SPACING;
+    // Slight alternating offset so they don't overlap on a straight line
+    const offsetAngle = baseAngle + (i % 2 === 0 ? -0.12 : 0.12);
     positions.push({
-      x: cx + LEAF_DIST * Math.cos(angle),
-      y: cy + LEAF_DIST * Math.sin(angle),
+      x: cx + dist * Math.cos(offsetAngle),
+      y: cy + dist * Math.sin(offsetAngle),
     });
   }
   return positions;

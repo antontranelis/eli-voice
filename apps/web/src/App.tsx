@@ -9,7 +9,6 @@ import { CircleVisualization } from "./components/CircleVisualization";
 import { CircleControls } from "./components/CircleControls";
 import { PlayPauseButton } from "./components/PlayPauseButton";
 import { ModerationToggle } from "./components/ModerationToggle";
-import { InsightsPanel } from "./components/InsightsPanel";
 import { InsightMindmap } from "./components/InsightMindmap";
 import { TabNav, Tab } from "./components/TabNav";
 import "./App.css";
@@ -279,7 +278,6 @@ export default function App() {
               onAdd={handleAddParticipant}
               onRemove={handleRemoveParticipant}
             />
-            <InsightsPanel insights={insights} />
           </aside>
         </div>
       ) : (
