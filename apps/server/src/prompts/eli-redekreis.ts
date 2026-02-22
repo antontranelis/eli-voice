@@ -1,6 +1,6 @@
 interface PromptOptions {
   moderationMode?: boolean;
-  insights?: Array<{ speaker: string; type: string; text: string }>;
+  insights?: Array<{ speakers: string[]; type: string; text: string }>;
 }
 
 export function buildSystemPrompt(
@@ -75,7 +75,7 @@ ${memorySection}`;
 }
 
 function formatInsightsForPrompt(
-  insights: Array<{ speaker: string; type: string; text: string }>
+  insights: Array<{ speakers: string[]; type: string; text: string }>
 ): string {
   const TYPE_LABELS: Record<string, string> = {
     commitment: "Vorhaben",
@@ -85,37 +85,27 @@ function formatInsightsForPrompt(
     observation: "Erkenntnis",
   };
 
-  // Group by speaker
-  const bySpeaker = new Map<string, Array<{ type: string; text: string }>>();
-  for (const i of insights) {
-    if (!bySpeaker.has(i.speaker)) bySpeaker.set(i.speaker, []);
-    bySpeaker.get(i.speaker)!.push(i);
-  }
-
   const lines: string[] = [];
-  for (const [speaker, items] of bySpeaker) {
-    for (const item of items) {
-      const label = TYPE_LABELS[item.type] || item.type;
-      lines.push(`- ${speaker} (${label}): ${item.text}`);
-    }
+  for (const item of insights) {
+    const label = TYPE_LABELS[item.type] || item.type;
+    lines.push(`- ${item.speakers.join(", ")} (${label}): ${item.text}`);
   }
   return lines.join("\n");
 }
 
 export function buildInsightExtractionPrompt(
-  existingInsights?: Array<{ id: string; speaker: string; type: string; text: string }>
-): string {
-  const existingSection =
-    existingInsights && existingInsights.length > 0
-      ? `\n\nBereits extrahierte Insights aus dem Kreis:
-${existingInsights.map((i) => `- [${i.id}] ${i.speaker}: ${i.text}`).join("\n")}
+  existingInsights?: Array<{ id: string; speakers: string[]; type: string; text: string }>,
+  participants?: string[]
+): Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> {
+  const participantSection = participants?.length
+    ? `\nTeilnehmer im Kreis: ${participants.join(", ")}
+WICHTIG: Whisper-Transkription macht oft Fehler bei Namen. Korrigiere falsch erkannte Namen in deinen Insight-Texten zum nächstpassenden Teilnehmer. Z.B. "Thimo" → "Timo", "Tilman" → "Tillmann", "Ellie" → "Eli".\n`
+    : "";
 
-Wenn der neue Beitrag thematisch mit einem bestehenden Insight verwandt ist, gib dessen ID in "relatedTo" an.`
-      : "";
-
-  return `Du analysierst Beiträge aus einem Redekreis.
+  // Static part — cacheable across calls
+  const staticPrompt = `Du analysierst Beiträge aus einem Redekreis.
 Extrahiere die Kernaussagen als strukturierte Insights.
-
+${participantSection}
 Kategorien:
 - commitment: Konkrete Zusagen oder Vorhaben ("Ich werde...", "Ich nehme mir vor...")
 - vision: Wünsche, Träume, Zukunftsbilder ("Ich stelle mir vor...", "Meine Vision...")
@@ -123,9 +113,30 @@ Kategorien:
 - question: Echte Fragen, die im Raum stehen ("Was wäre wenn...", "Ich frage mich...")
 - observation: Wichtige Beobachtungen, Erkenntnisse, emotionale Wahrheiten
 
-Antworte NUR mit JSON. Maximal 3 Insights pro Beitrag. Jeder Insight-Text ist ein kurzer Satz.
-Wenn nichts Wesentliches extrahierbar ist, gib ein leeres Array zurück.
-${existingSection}
-Format: { "insights": [{ "type": "...", "text": "...", "relatedTo": ["id1"] }] }
-relatedTo ist optional — nur angeben wenn eine echte thematische Verbindung besteht.`;
+REGELN:
+- Maximal 2 Insights pro Beitrag. Weniger ist besser. Nur das Wesentlichste.
+- Jeder Insight-Text ist ein kurzer, allgemeiner Satz (NICHT aus Ich-Perspektive). Z.B. "Bauen gemeinsam eine neue Software", "Freut sich auf das Experiment"
+- Wenn nichts wirklich Neues oder Wesentliches gesagt wurde, gib ein leeres Array zurück.
+- Antworte NUR mit JSON.
+
+MERGING: Wenn der neue Beitrag im Kern dasselbe sagt wie ein bestehendes Insight (gleiches konkretes Thema, z.B. beide über "Software bauen" oder beide über "Zuhören"), gib "mergeWith": "id" an. Der Text wird dann zum bestehenden Insight gemerged und der neue Sprecher hinzugefügt. Nur bei klarer inhaltlicher Überschneidung — NICHT bei allgemeiner Nähe.
+
+Wenn mergeWith angegeben wird, kannst du optional "text" mitgeben um den Text des gemergten Insights zu verbessern (allgemeiner formulieren, da es jetzt mehrere Sprecher betrifft).
+
+Format: { "insights": [{ "type": "...", "text": "...", "mergeWith": "id" }] }
+mergeWith ist optional — nur angeben wenn ein bestehendes Insight dasselbe konkrete Thema abdeckt.`;
+
+  const blocks: Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> = [
+    { type: "text", text: staticPrompt, cache_control: { type: "ephemeral" } },
+  ];
+
+  // Dynamic part — existing insights context (changes each call)
+  if (existingInsights && existingInsights.length > 0) {
+    blocks.push({
+      type: "text",
+      text: `\n\nBereits extrahierte Insights aus dem Kreis:\n${existingInsights.map((i) => `- [${i.id}] ${i.speakers.join(", ")}: ${i.text}`).join("\n")}`,
+    });
+  }
+
+  return blocks;
 }

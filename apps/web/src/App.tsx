@@ -8,9 +8,9 @@ import { TranscriptView } from "./components/TranscriptView";
 import { CircleVisualization } from "./components/CircleVisualization";
 import { CircleControls } from "./components/CircleControls";
 import { PlayPauseButton } from "./components/PlayPauseButton";
-import { ModerationToggle } from "./components/ModerationToggle";
 import { InsightMindmap } from "./components/InsightMindmap";
 import { TabNav, Tab } from "./components/TabNav";
+import { EliSettingsPanel } from "./components/EliSettingsPanel";
 import "./App.css";
 
 const DEFAULT_PARTICIPANTS = ["Anton", "Eli", "Timo", "Tillmann", "Eva"];
@@ -27,6 +27,7 @@ export default function App() {
   const [isFlushing, setIsFlushing] = useState(false);
   const [moderationMode, setModerationMode] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("log");
+  const [showEliSettings, setShowEliSettings] = useState(false);
 
   const currentSpeaker = order[turnIndex];
   const nextSpeaker = order[(turnIndex + 1) % order.length];
@@ -104,6 +105,10 @@ export default function App() {
           isEli: true,
         },
       ]);
+      // Extract insights OUTSIDE the setEntries updater
+      // (React Strict Mode calls updaters twice, which caused double extraction)
+      const entryIndex = entriesRef.current.length; // will be the index of the just-added entry
+      extractInsights("Eli", fullText, entryIndex, orderRef.current);
       setEliText("");
       tts.speak(fullText);
       // Automatically pass the talking stick to the next person
@@ -145,9 +150,10 @@ export default function App() {
     // Extract insights from the just-finished speaker (fire-and-forget)
     const justFinished = orderRef.current[turnIndexRef.current];
     if (justFinished !== "Eli") {
+      // Eli's insights are extracted in onComplete — here only for humans
       const fullText = collectSpeakerText(justFinished);
       if (fullText) {
-        extractInsights(justFinished, fullText, entriesRef.current.length - 1);
+        extractInsights(justFinished, fullText, entriesRef.current.length - 1, orderRef.current);
       }
     }
 
@@ -229,6 +235,7 @@ export default function App() {
             onReorder={setOrder}
             onAdd={(name) => setOrder((prev) => [...prev, name])}
             onRemove={(name) => setOrder((prev) => prev.filter((n) => n !== name))}
+            onEliClick={() => setShowEliSettings(true)}
           />
           <button
             onClick={handleStartCircle}
@@ -238,6 +245,13 @@ export default function App() {
             Kreis starten
           </button>
         </main>
+
+        <EliSettingsPanel
+          open={showEliSettings}
+          onClose={() => setShowEliSettings(false)}
+          moderationMode={moderationMode}
+          onModerationToggle={() => setModerationMode((m) => !m)}
+        />
       </div>
     );
   }
@@ -247,48 +261,50 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Redekreis</h1>
-        <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
-        <ModerationToggle
-          enabled={moderationMode}
-          onToggle={() => setModerationMode((m) => !m)}
-        />
         <PlayPauseButton isPaused={isPaused} isFlushing={isFlushing} onClick={handlePause} />
       </header>
 
-      {activeTab === "log" ? (
-        <div className="circle-body">
-          <main>
-            <TranscriptView entries={entries} />
+      <div className="circle-phase-body">
+        <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-            {eliText && (
-              <div className="eli-live">
-                <span className="speaker">Eli</span>
-                <p>{eliText}</p>
-              </div>
-            )}
-          </main>
+        {activeTab === "log" ? (
+          <div className="circle-body">
+            <main>
+              <TranscriptView entries={entries} onEliClick={() => setShowEliSettings(true)} />
 
-          <aside className="circle-area">
-            <CircleVisualization
+              {eliText && (
+                <div className="eli-live">
+                  <span className="speaker">Eli</span>
+                  <p>{eliText}</p>
+                </div>
+              )}
+            </main>
+
+            <aside className="circle-area">
+              <CircleVisualization
+                participants={order}
+                activeIndex={turnIndex}
+                audioLevel={audioLevel}
+                mode="circle"
+                onReorder={handleReorder}
+                onAdd={handleAddParticipant}
+                onRemove={handleRemoveParticipant}
+                onEliClick={() => setShowEliSettings(true)}
+              />
+            </aside>
+          </div>
+        ) : (
+          <div className="mindmap-body">
+            <InsightMindmap
               participants={order}
               activeIndex={turnIndex}
+              insights={insights}
               audioLevel={audioLevel}
-              mode="circle"
-              onReorder={handleReorder}
-              onAdd={handleAddParticipant}
-              onRemove={handleRemoveParticipant}
+              onEliClick={() => setShowEliSettings(true)}
             />
-          </aside>
-        </div>
-      ) : (
-        <div className="mindmap-body">
-          <InsightMindmap
-            participants={order}
-            activeIndex={turnIndex}
-            insights={insights}
-          />
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       <footer>
         <CircleControls
@@ -300,6 +316,13 @@ export default function App() {
           onNext={handleNext}
         />
       </footer>
+
+      <EliSettingsPanel
+        open={showEliSettings}
+        onClose={() => setShowEliSettings(false)}
+        moderationMode={moderationMode}
+        onModerationToggle={() => setModerationMode((m) => !m)}
+      />
     </div>
   );
 }

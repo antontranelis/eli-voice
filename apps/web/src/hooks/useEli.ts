@@ -51,7 +51,7 @@ export function useEli({ onChunk, onComplete, onRetry }: UseEliOptions) {
               transcript: formatTranscriptForEli(transcript),
               moderationMode: options?.moderationMode ?? false,
               insights: options?.insights?.map((i) => ({
-                speaker: i.speaker,
+                speakers: i.speakers,
                 type: i.type,
                 text: i.text,
               })) ?? [],

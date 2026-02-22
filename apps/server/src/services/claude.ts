@@ -20,7 +20,7 @@ function getClient(): Anthropic {
 
 interface EliOptions {
   moderationMode?: boolean;
-  insights?: Array<{ speaker: string; type: string; text: string }>;
+  insights?: Array<{ speakers: string[]; type: string; text: string }>;
 }
 
 export async function* streamEliResponse(
@@ -81,15 +81,16 @@ export async function* streamEliResponse(
 export async function extractInsights(
   speaker: string,
   text: string,
-  existingInsights?: Array<{ id: string; speaker: string; type: string; text: string }>
-): Promise<Array<{ type: string; text: string; relatedTo?: string[] }>> {
+  existingInsights?: Array<{ id: string; speakers: string[]; type: string; text: string }>,
+  participants?: string[]
+): Promise<Array<{ type: string; text: string; mergeWith?: string }>> {
   const anthropic = getClient();
 
   try {
     const response = await anthropic.messages.create({
       model: FAST_MODEL,
       max_tokens: 512,
-      system: buildInsightExtractionPrompt(existingInsights),
+      system: buildInsightExtractionPrompt(existingInsights, participants),
       messages: [
         {
           role: "user",

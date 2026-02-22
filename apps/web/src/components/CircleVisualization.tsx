@@ -9,6 +9,7 @@ interface CircleVisualizationProps {
   onReorder?: (newOrder: string[]) => void;
   onAdd?: (name: string) => void;
   onRemove?: (name: string) => void;
+  onEliClick?: () => void;
 }
 
 const VIEW_SIZE = 300;
@@ -49,6 +50,7 @@ export function CircleVisualization({
   onReorder,
   onAdd,
   onRemove,
+  onEliClick,
 }: CircleVisualizationProps) {
   const [addName, setAddName] = useState("");
   const [selectedForSwap, setSelectedForSwap] = useState<number | null>(null);
@@ -145,8 +147,14 @@ export function CircleVisualization({
               key={name}
               className="node-group"
               transform={`translate(${pos.x}, ${pos.y})`}
-              onClick={() => handleNodeClick(i)}
-              style={{ cursor: onReorder ? "pointer" : "default" }}
+              onClick={() => {
+                if (isEli && onEliClick && selectedForSwap === null) {
+                  onEliClick();
+                } else {
+                  handleNodeClick(i);
+                }
+              }}
+              style={{ cursor: onReorder || (isEli && onEliClick) ? "pointer" : "default" }}
             >
               <circle
                 className={[

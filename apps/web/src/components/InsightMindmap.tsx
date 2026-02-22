@@ -1,18 +1,33 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  forceSimulation,
+  forceLink,
+  forceManyBody,
+  forceCollide,
+  forceX,
+  forceY,
+  type SimulationNodeDatum,
+  type SimulationLinkDatum,
+} from "d3-force";
 import { Insight, InsightType } from "../lib/transcript";
-import { distributeOnCircle } from "../lib/circleGeometry";
 
 interface InsightMindmapProps {
   participants: string[];
   activeIndex: number;
   insights: Insight[];
+  audioLevel?: number; // 0..1
+  onEliClick?: () => void;
 }
 
-const VIEW_W = 900;
-const VIEW_H = 600;
+const VIEW_W = 1200;
+const VIEW_H = 900;
 const CX = VIEW_W / 2;
 const CY = VIEW_H / 2;
-const PERSON_R = 32;
-const ACTIVE_R = 36;
+
+const PERSON_R = 36;
+const ACTIVE_R = 40;
+const GLOW_R = 46;
+const INSIGHT_R = 14; // collision radius for insight nodes
 
 const TYPE_COLORS: Record<InsightType, string> = {
   commitment: "#e94560",
@@ -30,126 +45,255 @@ const TYPE_LABELS: Record<InsightType, string> = {
   observation: "Erkenntnis",
 };
 
-function getCircleRadius(n: number): number {
-  if (n <= 4) return 180;
-  if (n <= 6) return 200;
-  if (n <= 10) return 220;
-  return 240;
-}
-
-/** Position insight leaves in stacked rows INWARD (toward center) from a person node */
-function getInsightPositions(
-  cx: number,
-  cy: number,
-  count: number,
-  baseAngle: number
-): Array<{ x: number; y: number }> {
-  const positions: Array<{ x: number; y: number }> = [];
-  const FIRST_DIST = 65;
-  const ROW_SPACING = 36;
-
-  // Point inward (toward center) instead of outward
-  const inwardAngle = baseAngle + Math.PI;
-
-  for (let i = 0; i < count; i++) {
-    const dist = FIRST_DIST + i * ROW_SPACING;
-    // Slight alternating offset so they don't overlap on a straight line
-    const offsetAngle = inwardAngle + (i % 2 === 0 ? -0.15 : 0.15);
-    positions.push({
-      x: cx + dist * Math.cos(offsetAngle),
-      y: cy + dist * Math.sin(offsetAngle),
-    });
-  }
-  return positions;
-}
-
-/** Truncate text for leaf display */
 function truncate(text: string, max: number): string {
   return text.length > max ? text.slice(0, max - 1) + "\u2026" : text;
 }
+
+function getCircleRadius(n: number): number {
+  if (n <= 3) return 220;
+  if (n <= 5) return 260;
+  if (n <= 8) return 300;
+  return 340;
+}
+
+// --- Node types for the force simulation ---
+
+interface PersonNode extends SimulationNodeDatum {
+  kind: "person";
+  id: string;
+  name: string;
+  participantIndex: number;
+}
+
+interface InsightNode extends SimulationNodeDatum {
+  kind: "insight";
+  id: string;
+  insight: Insight;
+}
+
+type GraphNode = PersonNode | InsightNode;
+
+type GraphLink = SimulationLinkDatum<GraphNode>;
+
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 3;
 
 export function InsightMindmap({
   participants,
   activeIndex,
   insights,
+  audioLevel = 0,
+  onEliClick,
 }: InsightMindmapProps) {
-  const n = participants.length;
-  const circleR = getCircleRadius(n);
-  const positions = distributeOnCircle(n, CX, CY, circleR);
+  // Expanded insight (click to show full text)
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Group insights by speaker
-  const insightsBySpeaker = new Map<string, Insight[]>();
-  for (const ins of insights) {
-    if (!insightsBySpeaker.has(ins.speaker)) {
-      insightsBySpeaker.set(ins.speaker, []);
+  // Pan & Zoom state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+
+  // Force simulation positions — updated on each tick
+  const [nodePositions, setNodePositions] = useState<
+    Map<string, { x: number; y: number }>
+  >(new Map());
+
+  const simulationRef = useRef<ReturnType<typeof forceSimulation<GraphNode>> | null>(null);
+
+  // Build graph data from participants + insights
+  const nodesRef = useRef<GraphNode[]>([]);
+  const linksRef = useRef<GraphLink[]>([]);
+
+  useEffect(() => {
+    const n = participants.length;
+    const circleR = getCircleRadius(n);
+
+    // --- Build nodes ---
+    const personNodes: PersonNode[] = participants.map((name, i) => {
+      const angle = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      return {
+        kind: "person",
+        id: `person-${name}`,
+        name,
+        participantIndex: i,
+        // Fix person positions on the circle
+        fx: CX + circleR * Math.cos(angle),
+        fy: CY + circleR * Math.sin(angle),
+      };
+    });
+
+    const insightNodes: InsightNode[] = insights.map((ins) => {
+      // Find existing position to preserve continuity
+      const existing = nodesRef.current.find(
+        (n) => n.id === `insight-${ins.id}`
+      );
+      return {
+        kind: "insight",
+        id: `insight-${ins.id}`,
+        insight: ins,
+        // Start near the first speaker if new, otherwise keep current position
+        x: existing?.x ?? personNodes.find((p) => ins.speakers.includes(p.name))?.fx ?? CX,
+        y: existing?.y ?? personNodes.find((p) => ins.speakers.includes(p.name))?.fy ?? CY,
+      };
+    });
+
+    const allNodes: GraphNode[] = [...personNodes, ...insightNodes];
+
+    // --- Build links ---
+    const links: GraphLink[] = [];
+
+    // Link each insight to ALL its speakers (multi-speaker insights get pulled between them)
+    for (const ins of insights) {
+      for (const spk of ins.speakers) {
+        links.push({
+          source: `insight-${ins.id}`,
+          target: `person-${spk}`,
+        });
+      }
     }
-    insightsBySpeaker.get(ins.speaker)!.push(ins);
-  }
 
-  // Build a map from insight ID to its rendered position
-  const insightPositionMap = new Map<
-    string,
-    { x: number; y: number; speakerIdx: number }
-  >();
+    nodesRef.current = allNodes;
+    linksRef.current = links;
 
-  // Pre-compute positions for all insights
-  for (let i = 0; i < n; i++) {
-    const speaker = participants[i];
-    const speakerInsights = insightsBySpeaker.get(speaker) || [];
-    if (speakerInsights.length === 0) continue;
+    // --- Create / update simulation ---
+    if (simulationRef.current) {
+      simulationRef.current.stop();
+    }
 
-    // Angle pointing outward from center
-    const outwardAngle = positions[i].angle;
-    const leafPositions = getInsightPositions(
-      positions[i].x,
-      positions[i].y,
-      speakerInsights.length,
-      outwardAngle
-    );
-
-    for (let j = 0; j < speakerInsights.length; j++) {
-      insightPositionMap.set(speakerInsights[j].id, {
-        ...leafPositions[j],
-        speakerIdx: i,
+    const sim = forceSimulation<GraphNode>(allNodes)
+      .force(
+        "link",
+        forceLink<GraphNode, GraphLink>(links)
+          .id((d) => d.id)
+          .distance(140)
+          .strength(0.35)
+      )
+      .force(
+        "charge",
+        forceManyBody<GraphNode>()
+          .strength((d) => (d.kind === "person" ? -400 : -200))
+      )
+      .force(
+        "collide",
+        forceCollide<GraphNode>()
+          .radius((d) => (d.kind === "person" ? PERSON_R + 15 : 80))
+          .strength(1)
+          .iterations(3)
+      )
+      // Gentle centering pull so nothing drifts too far
+      .force("x", forceX<GraphNode>(CX).strength(0.02))
+      .force("y", forceY<GraphNode>(CY).strength(0.02))
+      .alpha(0.6)
+      .alphaDecay(0.015)
+      .on("tick", () => {
+        const positions = new Map<string, { x: number; y: number }>();
+        for (const node of allNodes) {
+          positions.set(node.id, { x: node.x ?? 0, y: node.y ?? 0 });
+        }
+        setNodePositions(new Map(positions));
       });
-    }
-  }
 
-  // Collect connection pairs
-  const connections: Array<{
-    from: { x: number; y: number };
-    to: { x: number; y: number };
-    fromType: InsightType;
-    toType: InsightType;
+    simulationRef.current = sim;
+
+    return () => {
+      sim.stop();
+    };
+  }, [participants, insights]);
+
+  // --- Pan & Zoom handlers ---
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * factor)));
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      setIsDragging(true);
+      dragStart.current = {
+        x: e.clientX,
+        y: e.clientY,
+        panX: pan.x,
+        panY: pan.y,
+      };
+      (e.target as Element).setPointerCapture(e.pointerId);
+    },
+    [pan]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStart.current.x;
+      const dy = e.clientY - dragStart.current.y;
+      setPan({
+        x: dragStart.current.panX + dx,
+        y: dragStart.current.panY + dy,
+      });
+    },
+    [isDragging]
+  );
+
+  const handlePointerUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  // --- Compute viewBox ---
+  const vbW = VIEW_W / zoom;
+  const vbH = VIEW_H / zoom;
+  const vbX = (VIEW_W - vbW) / 2 - pan.x / zoom;
+  const vbY = (VIEW_H - vbH) / 2 - pan.y / zoom;
+
+  // --- Collect connection lines for rendering ---
+  const connectionLines: Array<{
+    x1: number; y1: number; x2: number; y2: number;
+    insightType?: InsightType;
   }> = [];
 
-  for (const ins of insights) {
-    if (!ins.relatedTo) continue;
-    const fromPos = insightPositionMap.get(ins.id);
-    if (!fromPos) continue;
+  for (const link of linksRef.current) {
+    const sourceId = typeof link.source === "string" ? link.source : (link.source as GraphNode).id;
+    const targetId = typeof link.target === "string" ? link.target : (link.target as GraphNode).id;
+    const sourcePos = nodePositions.get(sourceId);
+    const targetPos = nodePositions.get(targetId);
+    if (!sourcePos || !targetPos) continue;
 
-    for (const relId of ins.relatedTo) {
-      const toPos = insightPositionMap.get(relId);
-      if (!toPos) continue;
-      // Avoid duplicate connections
-      if (ins.id > relId) continue;
+    const sourceNode = nodesRef.current.find((n) => n.id === sourceId);
+    const insightType =
+      sourceNode?.kind === "insight" ? sourceNode.insight.type : undefined;
 
-      const relatedInsight = insights.find((i) => i.id === relId);
-      connections.push({
-        from: fromPos,
-        to: toPos,
-        fromType: ins.type,
-        toType: relatedInsight?.type || ins.type,
-      });
-    }
+    connectionLines.push({
+      x1: sourcePos.x,
+      y1: sourcePos.y,
+      x2: targetPos.x,
+      y2: targetPos.y,
+      insightType,
+    });
   }
 
   return (
     <div className="mindmap-container">
       <svg
         className="mindmap-svg"
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
         xmlns="http://www.w3.org/2000/svg"
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
+        onClick={() => {
+          setExpandedId(null);
+        }}
+        style={{
+          cursor: isDragging ? "grabbing" : "grab",
+          touchAction: "none",
+        }}
       >
         <defs>
           <filter id="mindmap-glow">
@@ -161,69 +305,64 @@ export function InsightMindmap({
           </filter>
         </defs>
 
-        {/* Connection lines between related insights */}
-        {connections.map((conn, i) => {
-          const mx = (conn.from.x + conn.to.x) / 2;
-          const my = (conn.from.y + conn.to.y) / 2;
-          // Curve toward center for a nice arc
-          const cpx = mx + (CX - mx) * 0.3;
-          const cpy = my + (CY - my) * 0.3;
-
-          return (
-            <path
-              key={`conn-${i}`}
-              className="mindmap-connection"
-              d={`M ${conn.from.x} ${conn.from.y} Q ${cpx} ${cpy} ${conn.to.x} ${conn.to.y}`}
-              stroke={TYPE_COLORS[conn.fromType]}
-              fill="none"
-              strokeWidth={1.5}
-              strokeOpacity={0.4}
-              strokeDasharray="4 3"
+        {/* Connection lines */}
+        {connectionLines.map((line, i) => (
+            <line
+              key={`link-${i}`}
+              className="mindmap-stem"
+              x1={line.x1}
+              y1={line.y1}
+              x2={line.x2}
+              y2={line.y2}
+              stroke={
+                line.insightType
+                  ? TYPE_COLORS[line.insightType]
+                  : "var(--border)"
+              }
+              strokeWidth={1}
+              strokeOpacity={0.2}
             />
-          );
-        })}
-
-        {/* Stems from person to their insights */}
-        {participants.map((speaker, i) => {
-          const speakerInsights = insightsBySpeaker.get(speaker) || [];
-          return speakerInsights.map((ins) => {
-            const leafPos = insightPositionMap.get(ins.id);
-            if (!leafPos) return null;
-            return (
-              <line
-                key={`stem-${ins.id}`}
-                className="mindmap-stem"
-                x1={positions[i].x}
-                y1={positions[i].y}
-                x2={leafPos.x}
-                y2={leafPos.y}
-                stroke={TYPE_COLORS[ins.type]}
-                strokeWidth={1}
-                strokeOpacity={0.3}
-              />
-            );
-          });
-        })}
+        ))}
 
         {/* Person nodes */}
         {participants.map((name, i) => {
-          const pos = positions[i];
+          const pos = nodePositions.get(`person-${name}`);
+          if (!pos) return null;
           const isActive = i === activeIndex;
           const isEli = name === "Eli";
           const r = isActive ? ACTIVE_R : PERSON_R;
 
+          const glowR = GLOW_R + audioLevel * 20;
+          const ringR = ACTIVE_R + 5 + audioLevel * 12;
+          const glowOpacity = 0.15 + audioLevel * 0.35;
+
           return (
-            <g key={name} className="mindmap-person">
-              {/* Active glow */}
+            <g
+              key={name}
+              className="mindmap-person"
+              onClick={isEli && onEliClick ? (e) => { e.stopPropagation(); onEliClick(); } : undefined}
+              style={isEli && onEliClick ? { cursor: "pointer" } : undefined}
+            >
               {isActive && (
-                <circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={r + 10}
-                  fill="var(--accent)"
-                  opacity={0.15}
-                  filter="url(#mindmap-glow)"
-                />
+                <>
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={glowR}
+                    fill="var(--accent)"
+                    opacity={glowOpacity}
+                    filter="url(#mindmap-glow)"
+                  />
+                  <circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={ringR}
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth={1.5}
+                    opacity={0.4 + audioLevel * 0.4}
+                  />
+                </>
               )}
               <circle
                 cx={pos.x}
@@ -244,48 +383,83 @@ export function InsightMindmap({
               >
                 {name}
               </text>
+
             </g>
           );
         })}
 
-        {/* Insight leaves */}
+        {/* Insight nodes */}
         {insights.map((ins) => {
-          const pos = insightPositionMap.get(ins.id);
+          const pos = nodePositions.get(`insight-${ins.id}`);
           if (!pos) return null;
           const color = TYPE_COLORS[ins.type];
           const label = TYPE_LABELS[ins.type];
-          const displayText = truncate(ins.text, 30);
-          const boxW = Math.min(displayText.length * 6.5 + 24, 200);
-          const boxH = 32;
+          const isExpanded = expandedId === ins.id;
+          const displayText = isExpanded ? ins.text : truncate(ins.text, 30);
+
+          // Wrap long expanded text into lines
+          const MAX_LINE_CHARS = 35;
+          const lines: string[] = [];
+          if (isExpanded && displayText.length > MAX_LINE_CHARS) {
+            const words = displayText.split(" ");
+            let line = "";
+            for (const word of words) {
+              if ((line + " " + word).trim().length > MAX_LINE_CHARS) {
+                lines.push(line.trim());
+                line = word;
+              } else {
+                line = line ? line + " " + word : word;
+              }
+            }
+            if (line.trim()) lines.push(line.trim());
+          } else {
+            lines.push(displayText);
+          }
+
+          const boxW = isExpanded
+            ? Math.min(MAX_LINE_CHARS * 6.5 + 24, 260)
+            : Math.min(displayText.length * 6.5 + 24, 200);
+          const boxH = isExpanded ? 20 + lines.length * 14 + 8 : 32;
 
           return (
-            <g key={ins.id} className="mindmap-leaf">
+            <g
+              key={ins.id}
+              className={`mindmap-leaf ${isExpanded ? "expanded" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedId(isExpanded ? null : ins.id);
+              }}
+              style={{ cursor: "pointer" }}
+            >
               <rect
                 x={pos.x - boxW / 2}
                 y={pos.y - boxH / 2}
                 width={boxW}
                 height={boxH}
                 rx={6}
-                fill={color + "18"}
+                fill={isExpanded ? color + "30" : color + "18"}
                 stroke={color}
-                strokeWidth={1}
-                strokeOpacity={0.5}
+                strokeWidth={isExpanded ? 1.5 : 1}
+                strokeOpacity={isExpanded ? 0.8 : 0.5}
               />
               <text
                 x={pos.x}
-                y={pos.y - 3}
+                y={pos.y - boxH / 2 + 14}
                 className="mindmap-leaf-label"
                 fill={color}
               >
-                {label}
+                {label} — {ins.speakers.join(", ")}
               </text>
-              <text
-                x={pos.x}
-                y={pos.y + 10}
-                className="mindmap-leaf-text"
-              >
-                {displayText}
-              </text>
+              {lines.map((line, li) => (
+                <text
+                  key={li}
+                  x={pos.x}
+                  y={pos.y - boxH / 2 + 26 + li * 14}
+                  className="mindmap-leaf-text"
+                >
+                  {line}
+                </text>
+              ))}
             </g>
           );
         })}

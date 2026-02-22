@@ -9,8 +9,7 @@ export function useInsights() {
   insightsRef.current = insights;
 
   const extractInsights = useCallback(
-    async (speaker: string, text: string, entryIndex: number) => {
-      if (speaker === "Eli") return;
+    async (speaker: string, text: string, entryIndex: number, participants?: string[]) => {
       if (!text.trim()) return;
 
       setIsExtracting(true);
@@ -18,7 +17,7 @@ export function useInsights() {
         // Read current insights from ref (always fresh)
         const existingForServer = insightsRef.current.map((i) => ({
           id: i.id,
-          speaker: i.speaker,
+          speakers: i.speakers,
           type: i.type,
           text: i.text,
         }));
@@ -30,25 +29,49 @@ export function useInsights() {
             speaker,
             text,
             existingInsights: existingForServer,
+            participants,
           }),
         });
         const data = await res.json();
         if (data.insights?.length) {
-          const newInsights: Insight[] = data.insights.map(
-            (i: { type: InsightType; text: string; relatedTo?: string[] }) => {
+          setInsights((prev) => {
+            let updated = [...prev];
+            for (const i of data.insights as Array<{
+              type: InsightType;
+              text: string;
+              mergeWith?: string;
+            }>) {
+              if (i.mergeWith) {
+                // Merge into existing insight
+                const targetIdx = updated.findIndex((e) => e.id === i.mergeWith);
+                if (targetIdx !== -1) {
+                  const target = updated[targetIdx];
+                  const newSpeakers = target.speakers.includes(speaker)
+                    ? target.speakers
+                    : [...target.speakers, speaker];
+                  updated[targetIdx] = {
+                    ...target,
+                    speakers: newSpeakers,
+                    // Use new text if provided (reworded for multi-speaker), else keep original
+                    text: i.text || target.text,
+                  };
+                  continue;
+                }
+                // Target not found — fall through to create new
+              }
+              // Create new insight
               counterRef.current += 1;
-              return {
-                id: `${speaker.toLowerCase()}-${counterRef.current}`,
-                speaker,
+              updated.push({
+                id: `insight-${counterRef.current}`,
+                speakers: [speaker],
                 type: i.type,
                 text: i.text,
                 entryIndex,
                 timestamp: new Date(),
-                relatedTo: i.relatedTo,
-              };
+              });
             }
-          );
-          setInsights((prev) => [...prev, ...newInsights]);
+            return updated;
+          });
         }
       } catch (err) {
         console.error("Insight extraction failed:", err);

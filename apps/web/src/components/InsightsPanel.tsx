@@ -38,7 +38,7 @@ export function InsightsPanel({ insights }: InsightsPanelProps) {
             >
               {TYPE_LABELS[insight.type]}
             </span>
-            <span className="insight-speaker">{insight.speaker}</span>
+            <span className="insight-speaker">{insight.speakers.join(", ")}</span>
             <span className="insight-text">{insight.text}</span>
           </div>
         ))}
