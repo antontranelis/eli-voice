@@ -8,11 +8,13 @@ export interface TranscriptEntry {
 export type InsightType = 'commitment' | 'vision' | 'offer' | 'question' | 'observation';
 
 export interface Insight {
+  id: string;
   speaker: string;
   type: InsightType;
   text: string;
   entryIndex: number;
   timestamp: Date;
+  relatedTo?: string[];
 }
 
 export function formatTranscriptForEli(entries: TranscriptEntry[]): string {

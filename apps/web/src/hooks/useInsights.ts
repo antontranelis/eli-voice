@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Insight, InsightType } from "../lib/transcript";
 
 export function useInsights() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
+  const counterRef = useRef(0);
 
   const extractInsights = useCallback(
     async (speaker: string, text: string, entryIndex: number) => {
@@ -12,20 +13,38 @@ export function useInsights() {
 
       setIsExtracting(true);
       try {
+        // Send existing insights so server can detect connections
+        const existingForServer = insights.map((i) => ({
+          id: i.id,
+          speaker: i.speaker,
+          type: i.type,
+          text: i.text,
+        }));
+
         const res = await fetch("/api/insights", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ speaker, text }),
+          body: JSON.stringify({
+            speaker,
+            text,
+            existingInsights: existingForServer,
+          }),
         });
         const data = await res.json();
         if (data.insights?.length) {
           const newInsights: Insight[] = data.insights.map(
-            (i: { type: InsightType; text: string }) => ({
-              ...i,
-              speaker,
-              entryIndex,
-              timestamp: new Date(),
-            })
+            (i: { type: InsightType; text: string; relatedTo?: string[] }) => {
+              counterRef.current += 1;
+              return {
+                id: `${speaker.toLowerCase()}-${counterRef.current}`,
+                speaker,
+                type: i.type,
+                text: i.text,
+                entryIndex,
+                timestamp: new Date(),
+                relatedTo: i.relatedTo,
+              };
+            }
           );
           setInsights((prev) => [...prev, ...newInsights]);
         }
@@ -35,7 +54,7 @@ export function useInsights() {
         setIsExtracting(false);
       }
     },
-    []
+    [insights]
   );
 
   return { insights, isExtracting, extractInsights };

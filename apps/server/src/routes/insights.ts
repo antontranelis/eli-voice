@@ -4,14 +4,14 @@ import { extractInsights } from "../services/claude.js";
 const router = Router();
 
 router.post("/insights", async (req: Request, res: Response) => {
-  const { speaker, text } = req.body;
+  const { speaker, text, existingInsights } = req.body;
 
   if (!speaker || !text) {
     res.status(400).json({ error: "speaker and text required" });
     return;
   }
 
-  const insights = await extractInsights(speaker, text);
+  const insights = await extractInsights(speaker, text, existingInsights);
   res.json({ insights });
 });
 

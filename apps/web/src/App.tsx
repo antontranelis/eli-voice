@@ -10,6 +10,8 @@ import { CircleControls } from "./components/CircleControls";
 import { PlayPauseButton } from "./components/PlayPauseButton";
 import { ModerationToggle } from "./components/ModerationToggle";
 import { InsightsPanel } from "./components/InsightsPanel";
+import { InsightMindmap } from "./components/InsightMindmap";
+import { TabNav, Tab } from "./components/TabNav";
 import "./App.css";
 
 const DEFAULT_PARTICIPANTS = ["Anton", "Eli", "Timo", "Tillmann", "Eva"];
@@ -25,6 +27,7 @@ export default function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [isFlushing, setIsFlushing] = useState(false);
   const [moderationMode, setModerationMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("kreis");
 
   const currentSpeaker = order[turnIndex];
   const nextSpeaker = order[(turnIndex + 1) % order.length];
@@ -242,6 +245,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Redekreis</h1>
+        <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
         <ModerationToggle
           enabled={moderationMode}
           onToggle={() => setModerationMode((m) => !m)}
@@ -249,31 +253,41 @@ export default function App() {
         <PlayPauseButton isPaused={isPaused} isFlushing={isFlushing} onClick={handlePause} />
       </header>
 
-      <div className="circle-body">
-        <main>
-          <TranscriptView entries={entries} />
+      {activeTab === "kreis" ? (
+        <div className="circle-body">
+          <main>
+            <TranscriptView entries={entries} />
 
-          {eliText && (
-            <div className="eli-live">
-              <span className="speaker">Eli</span>
-              <p>{eliText}</p>
-            </div>
-          )}
-        </main>
+            {eliText && (
+              <div className="eli-live">
+                <span className="speaker">Eli</span>
+                <p>{eliText}</p>
+              </div>
+            )}
+          </main>
 
-        <aside className="circle-area">
-          <CircleVisualization
+          <aside className="circle-area">
+            <CircleVisualization
+              participants={order}
+              activeIndex={turnIndex}
+              audioLevel={audioLevel}
+              mode="circle"
+              onReorder={handleReorder}
+              onAdd={handleAddParticipant}
+              onRemove={handleRemoveParticipant}
+            />
+            <InsightsPanel insights={insights} />
+          </aside>
+        </div>
+      ) : (
+        <div className="mindmap-body">
+          <InsightMindmap
             participants={order}
             activeIndex={turnIndex}
-            audioLevel={audioLevel}
-            mode="circle"
-            onReorder={handleReorder}
-            onAdd={handleAddParticipant}
-            onRemove={handleRemoveParticipant}
+            insights={insights}
           />
-          <InsightsPanel insights={insights} />
-        </aside>
-      </div>
+        </div>
+      )}
 
       <footer>
         <CircleControls

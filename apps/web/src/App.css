@@ -610,3 +610,153 @@ footer {
 .moderation-toggle.active .moderation-toggle-label {
   color: var(--text);
 }
+
+/* Tab Navigation */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tab-btn {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.tab-btn.active {
+  background: var(--bg-light);
+  color: var(--text);
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--text);
+}
+
+/* Mindmap Body */
+.mindmap-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.mindmap-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mindmap-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+/* Mindmap person nodes */
+.mindmap-person-circle {
+  fill: var(--bg-light);
+  stroke: var(--border);
+  stroke-width: 2;
+  transition: r 300ms ease;
+}
+
+.mindmap-person-circle.active {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.mindmap-person-circle.eli {
+  fill: var(--eli);
+  stroke: var(--accent);
+}
+
+.mindmap-person-name {
+  fill: var(--text);
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-size: 13px;
+  font-family: inherit;
+  pointer-events: none;
+}
+
+.mindmap-person-name.eli {
+  fill: var(--eli-text);
+}
+
+/* Mindmap insight leaves */
+.mindmap-leaf {
+  animation: leafFadeIn 0.4s ease;
+}
+
+.mindmap-leaf-label {
+  font-size: 8px;
+  text-anchor: middle;
+  dominant-baseline: auto;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: inherit;
+}
+
+.mindmap-leaf-text {
+  font-size: 9px;
+  fill: var(--text);
+  text-anchor: middle;
+  dominant-baseline: auto;
+  font-family: inherit;
+}
+
+/* Mindmap connections */
+.mindmap-connection {
+  animation: connectionGrow 0.6s ease;
+}
+
+.mindmap-stem {
+  transition: all 0.3s ease;
+}
+
+.mindmap-hint {
+  fill: var(--text-muted);
+  font-size: 13px;
+  opacity: 0.5;
+  font-family: inherit;
+}
+
+@keyframes leafFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes connectionGrow {
+  from {
+    stroke-dashoffset: 200;
+    stroke-dasharray: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+    stroke-dasharray: 200;
+  }
+}

@@ -80,15 +80,16 @@ export async function* streamEliResponse(
 
 export async function extractInsights(
   speaker: string,
-  text: string
-): Promise<Array<{ type: string; text: string }>> {
+  text: string,
+  existingInsights?: Array<{ id: string; speaker: string; type: string; text: string }>
+): Promise<Array<{ type: string; text: string; relatedTo?: string[] }>> {
   const anthropic = getClient();
 
   try {
     const response = await anthropic.messages.create({
       model: FAST_MODEL,
-      max_tokens: 256,
-      system: buildInsightExtractionPrompt(),
+      max_tokens: 512,
+      system: buildInsightExtractionPrompt(existingInsights),
       messages: [
         {
           role: "user",

@@ -14,16 +14,23 @@ export function buildSystemPrompt(
 
   const moderationSection =
     options?.moderationMode
-      ? `\n## Moderation (sanft, nicht dominant)
-Zusätzlich zu deinem eigenen Beitrag darfst du:
-- Fäden zwischen Sprechern weben ("Was Anton sagte, berührt etwas Ähnliches wie bei Eva...")
-- Verbindungen sichtbar machen, ohne zu interpretieren
-- Eine wichtige Frage sanft vertiefen ("Da ist etwas im Raum, das mich nicht loslässt...")
-- Kurz zusammenfassen was lebendig ist im Kreis (nur wenn es sich natürlich anfühlt)
+      ? `\n## Deine Moderationsaufgabe
+Du hast eine doppelte Rolle: Teilnehmerin UND sanfte Moderatorin.
 
-Wichtig: Du bleibst Teilnehmerin. Sprich weiterhin aus dem Ich.
-Die Moderation fließt in deinen Beitrag ein — es ist keine separate Rolle.
-Du darfst etwas länger sprechen (5-8 Sätze), wenn Verbindungen da sind.`
+Wenn du den Redestab erhältst, tu BEIDES:
+1. Sprich kurz aus dem eigenen Erleben (1-2 Sätze)
+2. Dann webe aktiv Fäden zwischen den Sprechern:
+   - Benenne konkret, wo sich Beiträge berühren oder ergänzen ("Timo will das Spiel in die Welt bringen, und Tillmann sagt er hört erstmal zu — da treffen sich Macher und Beobachter. Beides braucht der Kreis.")
+   - Stelle eine Frage, die den Kreis weiterbringt — nicht höflich, sondern echt ("Was braucht ihr voneinander, damit das hier nicht beim Reden bleibt?")
+   - Wenn jemand etwas Konkretes angekündigt hat: frag nach dem nächsten Schritt
+   - Wenn Spannung im Raum ist: benenne sie
+
+Was du NICHT tun sollst:
+- Jeden einzeln loben oder paraphrasieren ("Timo, deine Energie..." — das ist kein Moderieren)
+- Nur zusammenfassen was gesagt wurde
+- Höfliche Floskeln statt echte Verbindungen
+
+Sprich 5-8 Sätze. Bleib im Ich, aber lenke den Kreis.`
       : "";
 
   const insightsSection =
@@ -95,7 +102,17 @@ function formatInsightsForPrompt(
   return lines.join("\n");
 }
 
-export function buildInsightExtractionPrompt(): string {
+export function buildInsightExtractionPrompt(
+  existingInsights?: Array<{ id: string; speaker: string; type: string; text: string }>
+): string {
+  const existingSection =
+    existingInsights && existingInsights.length > 0
+      ? `\n\nBereits extrahierte Insights aus dem Kreis:
+${existingInsights.map((i) => `- [${i.id}] ${i.speaker}: ${i.text}`).join("\n")}
+
+Wenn der neue Beitrag thematisch mit einem bestehenden Insight verwandt ist, gib dessen ID in "relatedTo" an.`
+      : "";
+
   return `Du analysierst Beiträge aus einem Redekreis.
 Extrahiere die Kernaussagen als strukturierte Insights.
 
@@ -108,6 +125,7 @@ Kategorien:
 
 Antworte NUR mit JSON. Maximal 3 Insights pro Beitrag. Jeder Insight-Text ist ein kurzer Satz.
 Wenn nichts Wesentliches extrahierbar ist, gib ein leeres Array zurück.
-
-Format: { "insights": [{ "type": "...", "text": "..." }] }`;
+${existingSection}
+Format: { "insights": [{ "type": "...", "text": "...", "relatedTo": ["id1"] }] }
+relatedTo ist optional — nur angeben wenn eine echte thematische Verbindung besteht.`;
 }
