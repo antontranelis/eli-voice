@@ -5,6 +5,16 @@ export interface TranscriptEntry {
   isEli?: boolean;
 }
 
+export type InsightType = 'commitment' | 'vision' | 'offer' | 'question' | 'observation';
+
+export interface Insight {
+  speaker: string;
+  type: InsightType;
+  text: string;
+  entryIndex: number;
+  timestamp: Date;
+}
+
 export function formatTranscriptForEli(entries: TranscriptEntry[]): string {
   return entries
     .map((e) => `[${e.speaker}]: ${e.text}`)

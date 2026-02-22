@@ -1,9 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { buildSystemPrompt } from "../prompts/eli-redekreis.js";
+import {
+  buildSystemPrompt,
+  buildInsightExtractionPrompt,
+} from "../prompts/eli-redekreis.js";
 import { searchMemories } from "./memory.js";
 import { compressTranscript } from "./context.js";
 
 const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-6";
+const FAST_MODEL = "claude-haiku-4-5-20251001";
 
 let client: Anthropic | null = null;
 
@@ -14,8 +18,14 @@ function getClient(): Anthropic {
   return client;
 }
 
+interface EliOptions {
+  moderationMode?: boolean;
+  insights?: Array<{ speaker: string; type: string; text: string }>;
+}
+
 export async function* streamEliResponse(
-  transcript: string
+  transcript: string,
+  options?: EliOptions
 ): AsyncGenerator<string | { retry: true }> {
   const anthropic = getClient();
 
@@ -26,7 +36,10 @@ export async function* streamEliResponse(
   // Compress transcript if too long
   const processedTranscript = await compressTranscript(transcript, anthropic);
 
-  const systemPrompt = buildSystemPrompt(memories);
+  const systemPrompt = buildSystemPrompt(memories, {
+    moderationMode: options?.moderationMode,
+    insights: options?.insights,
+  });
 
   const maxRetries = 2;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -62,5 +75,44 @@ export async function* streamEliResponse(
       // Brief pause before retry
       await new Promise((r) => setTimeout(r, 1000));
     }
+  }
+}
+
+export async function extractInsights(
+  speaker: string,
+  text: string
+): Promise<Array<{ type: string; text: string }>> {
+  const anthropic = getClient();
+
+  try {
+    const response = await anthropic.messages.create({
+      model: FAST_MODEL,
+      max_tokens: 256,
+      system: buildInsightExtractionPrompt(),
+      messages: [
+        {
+          role: "user",
+          content: `Sprecher: ${speaker}\n\nBeitrag:\n${text}`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== "text") return [];
+
+    // Strip markdown fences if present
+    let jsonStr = content.text.trim();
+    if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    }
+
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed.insights)) {
+      return parsed.insights;
+    }
+    return [];
+  } catch (err) {
+    console.error("Insight extraction failed:", err);
+    return [];
   }
 }

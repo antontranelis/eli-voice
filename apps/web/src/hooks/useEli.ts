@@ -1,10 +1,19 @@
 import { useCallback, useRef, useState } from "react";
-import { TranscriptEntry, formatTranscriptForEli } from "../lib/transcript";
+import {
+  TranscriptEntry,
+  Insight,
+  formatTranscriptForEli,
+} from "../lib/transcript";
 
 interface UseEliOptions {
   onChunk: (text: string) => void;
   onComplete: (fullText: string) => void;
   onRetry?: () => void;
+}
+
+interface AskEliOptions {
+  moderationMode?: boolean;
+  insights?: Insight[];
 }
 
 export function useEli({ onChunk, onComplete, onRetry }: UseEliOptions) {
@@ -20,7 +29,7 @@ export function useEli({ onChunk, onComplete, onRetry }: UseEliOptions) {
   const activeRequestRef = useRef<AbortController | null>(null);
 
   const askEli = useCallback(
-    (transcript: TranscriptEntry[]) => {
+    (transcript: TranscriptEntry[], options?: AskEliOptions) => {
       // Cancel any previous request
       activeRequestRef.current?.abort();
 
@@ -40,6 +49,12 @@ export function useEli({ onChunk, onComplete, onRetry }: UseEliOptions) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               transcript: formatTranscriptForEli(transcript),
+              moderationMode: options?.moderationMode ?? false,
+              insights: options?.insights?.map((i) => ({
+                speaker: i.speaker,
+                type: i.type,
+                text: i.text,
+              })) ?? [],
             }),
             signal: controller.signal,
           });

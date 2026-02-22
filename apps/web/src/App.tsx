@@ -2,11 +2,14 @@ import { useCallback, useRef, useState } from "react";
 import { TranscriptEntry } from "./lib/transcript";
 import { useWhisper } from "./hooks/useWhisper";
 import { useEli } from "./hooks/useEli";
+import { useInsights } from "./hooks/useInsights";
 import { useTTS } from "./hooks/useTTS";
 import { TranscriptView } from "./components/TranscriptView";
 import { CircleVisualization } from "./components/CircleVisualization";
 import { CircleControls } from "./components/CircleControls";
 import { PlayPauseButton } from "./components/PlayPauseButton";
+import { ModerationToggle } from "./components/ModerationToggle";
+import { InsightsPanel } from "./components/InsightsPanel";
 import "./App.css";
 
 const DEFAULT_PARTICIPANTS = ["Anton", "Eli", "Timo", "Tillmann", "Eva"];
@@ -21,6 +24,7 @@ export default function App() {
   const [eliText, setEliText] = useState("");
   const [isPaused, setIsPaused] = useState(false);
   const [isFlushing, setIsFlushing] = useState(false);
+  const [moderationMode, setModerationMode] = useState(false);
 
   const currentSpeaker = order[turnIndex];
   const nextSpeaker = order[(turnIndex + 1) % order.length];
@@ -33,6 +37,15 @@ export default function App() {
   orderRef.current = order;
   const turnIndexRef = useRef(turnIndex);
   turnIndexRef.current = turnIndex;
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
+  const moderationRef = useRef(moderationMode);
+  moderationRef.current = moderationMode;
+
+  // Insights
+  const { insights, extractInsights } = useInsights();
+  const insightsRef = useRef(insights);
+  insightsRef.current = insights;
 
   // Whisper: Live-Transkription
   const handleTranscript = useCallback(
@@ -96,6 +109,21 @@ export default function App() {
     },
   });
 
+  // Collect all text from the current speaker's turn (Whisper produces multiple entries)
+  const collectSpeakerText = (speaker: string): string => {
+    const currentEntries = entriesRef.current;
+    const texts: string[] = [];
+    // Walk backwards from the end collecting entries from this speaker
+    for (let i = currentEntries.length - 1; i >= 0; i--) {
+      if (currentEntries[i].speaker === speaker) {
+        texts.unshift(currentEntries[i].text);
+      } else {
+        break; // Stop at the first entry from a different speaker
+      }
+    }
+    return texts.join(" ");
+  };
+
   // Kreis starten
   const handleStartCircle = () => {
     setTurnIndex(0);
@@ -109,12 +137,24 @@ export default function App() {
     await flush();
     setIsFlushing(false);
 
+    // Extract insights from the just-finished speaker (fire-and-forget)
+    const justFinished = orderRef.current[turnIndexRef.current];
+    if (justFinished !== "Eli") {
+      const fullText = collectSpeakerText(justFinished);
+      if (fullText) {
+        extractInsights(justFinished, fullText, entriesRef.current.length - 1);
+      }
+    }
+
     const nextIndex = (turnIndexRef.current + 1) % orderRef.current.length;
     setTurnIndex(nextIndex);
 
     if (orderRef.current[nextIndex] === "Eli") {
       setEliText("");
-      eli.askEli(entries);
+      eli.askEli(entriesRef.current, {
+        moderationMode: moderationRef.current,
+        insights: insightsRef.current,
+      });
     }
   };
 
@@ -202,6 +242,10 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Redekreis</h1>
+        <ModerationToggle
+          enabled={moderationMode}
+          onToggle={() => setModerationMode((m) => !m)}
+        />
         <PlayPauseButton isPaused={isPaused} isFlushing={isFlushing} onClick={handlePause} />
       </header>
 
@@ -227,6 +271,7 @@ export default function App() {
             onAdd={handleAddParticipant}
             onRemove={handleRemoveParticipant}
           />
+          <InsightsPanel insights={insights} />
         </aside>
       </div>
 

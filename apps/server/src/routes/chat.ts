@@ -4,7 +4,7 @@ import { streamEliResponse } from "../services/claude.js";
 const router = Router();
 
 router.post("/eli", async (req: Request, res: Response) => {
-  const { transcript } = req.body;
+  const { transcript, moderationMode, insights } = req.body;
 
   if (!transcript) {
     res.status(400).json({ error: "transcript required" });
@@ -17,7 +17,10 @@ router.post("/eli", async (req: Request, res: Response) => {
   res.setHeader("Connection", "keep-alive");
 
   try {
-    for await (const chunk of streamEliResponse(transcript)) {
+    for await (const chunk of streamEliResponse(transcript, {
+      moderationMode,
+      insights,
+    })) {
       if (typeof chunk === "string") {
         res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
       } else if (chunk.retry) {

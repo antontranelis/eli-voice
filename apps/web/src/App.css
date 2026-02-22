@@ -493,3 +493,120 @@ footer {
   vertical-align: middle;
   margin-right: 0.4rem;
 }
+
+/* Insights Panel */
+.insights-panel {
+  width: 100%;
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.insights-title {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+.insights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.insight-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  animation: insightFadeIn 0.3s ease;
+}
+
+.insight-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.insight-speaker {
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.insight-text {
+  color: var(--text);
+}
+
+@keyframes insightFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Moderation Toggle */
+.moderation-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.moderation-toggle-track {
+  width: 32px;
+  height: 18px;
+  background: var(--border);
+  border-radius: 9px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.moderation-toggle.active .moderation-toggle-track {
+  background: var(--accent);
+}
+
+.moderation-toggle-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.moderation-toggle.active .moderation-toggle-thumb {
+  transform: translateX(14px);
+  background: var(--text);
+}
+
+.moderation-toggle-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: color 0.2s;
+}
+
+.moderation-toggle.active .moderation-toggle-label {
+  color: var(--text);
+}
