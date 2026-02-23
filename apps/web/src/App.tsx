@@ -28,6 +28,7 @@ export default function App() {
   const [moderationMode, setModerationMode] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("log");
   const [showEliSettings, setShowEliSettings] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
 
   const currentSpeaker = order[turnIndex];
   const nextSpeaker = order[(turnIndex + 1) % order.length];
@@ -76,8 +77,7 @@ export default function App() {
 
   // TTS
   const tts = useTTS({
-    apiKey: undefined,
-    voiceId: undefined,
+    enabled: ttsEnabled,
   });
 
   // Auto-advance after Eli finishes
@@ -251,6 +251,8 @@ export default function App() {
           onClose={() => setShowEliSettings(false)}
           moderationMode={moderationMode}
           onModerationToggle={() => setModerationMode((m) => !m)}
+          ttsEnabled={ttsEnabled}
+          onTtsToggle={() => setTtsEnabled((t) => !t)}
         />
       </div>
     );
@@ -322,6 +324,8 @@ export default function App() {
         onClose={() => setShowEliSettings(false)}
         moderationMode={moderationMode}
         onModerationToggle={() => setModerationMode((m) => !m)}
+        ttsEnabled={ttsEnabled}
+        onTtsToggle={() => setTtsEnabled((t) => !t)}
       />
     </div>
   );

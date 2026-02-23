@@ -1,44 +1,34 @@
 import { useCallback, useRef, useState } from "react";
 
 interface UseTTSOptions {
-  apiKey?: string;
-  voiceId?: string;
+  enabled?: boolean;
+  voice?: string;
 }
 
-export function useTTS({ apiKey, voiceId }: UseTTSOptions = {}) {
+export function useTTS({ enabled = false, voice = "nova" }: UseTTSOptions = {}) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const speak = useCallback(
-    async (text: string) => {
-      // If no API key, use browser TTS as fallback
-      if (!apiKey || !voiceId) {
+    async (rawText: string) => {
+      // Strip stage directions like *hält inne*, *gibt den Redestab weiter*
+      const text = rawText.replace(/\*[^*]+\*/g, "").replace(/\s{2,}/g, " ").trim();
+      if (!text) return;
+
+      if (!enabled) {
         return speakBrowser(text);
       }
 
       setIsSpeaking(true);
       try {
-        const response = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`,
-          {
-            method: "POST",
-            headers: {
-              "xi-api-key": apiKey,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              text,
-              model_id: "eleven_flash_v2_5",
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75,
-              },
-            }),
-          }
-        );
+        const response = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, voice }),
+        });
 
         if (!response.ok) {
-          throw new Error(`ElevenLabs error: ${response.status}`);
+          throw new Error(`TTS error: ${response.status}`);
         }
 
         const audioBlob = await response.blob();
@@ -54,11 +44,10 @@ export function useTTS({ apiKey, voiceId }: UseTTSOptions = {}) {
         await audio.play();
       } catch (err) {
         console.error("TTS-Fehler:", err);
-        // Fallback to browser TTS
         speakBrowser(text);
       }
     },
-    [apiKey, voiceId]
+    [enabled, voice]
   );
 
   const speakBrowser = useCallback((text: string) => {

@@ -1,5 +1,5 @@
 import { ChromaClient, type IEmbeddingFunction } from "chromadb";
-import { pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
+import type { FeatureExtractionPipeline } from "@huggingface/transformers";
 
 // Same model as Chroma's default: all-MiniLM-L6-v2 (384 dimensions)
 const MODEL = "Xenova/all-MiniLM-L6-v2";
@@ -8,9 +8,10 @@ let embedder: FeatureExtractionPipeline | null = null;
 
 async function getEmbedder(): Promise<FeatureExtractionPipeline> {
   if (!embedder) {
-    embedder = await pipeline("feature-extraction", MODEL, {
+    const { pipeline } = await import("@huggingface/transformers");
+    embedder = (await (pipeline as Function)("feature-extraction", MODEL, {
       dtype: "fp32",
-    });
+    })) as FeatureExtractionPipeline;
   }
   return embedder;
 }

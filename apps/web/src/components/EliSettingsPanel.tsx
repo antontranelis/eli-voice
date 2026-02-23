@@ -3,6 +3,8 @@ interface EliSettingsPanelProps {
   onClose: () => void;
   moderationMode: boolean;
   onModerationToggle: () => void;
+  ttsEnabled: boolean;
+  onTtsToggle: () => void;
 }
 
 export function EliSettingsPanel({
@@ -10,6 +12,8 @@ export function EliSettingsPanel({
   onClose,
   moderationMode,
   onModerationToggle,
+  ttsEnabled,
+  onTtsToggle,
 }: EliSettingsPanelProps) {
   return (
     <>
@@ -28,6 +32,18 @@ export function EliSettingsPanel({
         </div>
 
         <div className="eli-panel-body">
+          <label className="eli-panel-row">
+            <span>Stimme</span>
+            <button
+              className={`moderation-toggle-mini ${ttsEnabled ? "active" : ""}`}
+              onClick={onTtsToggle}
+            >
+              <span className="moderation-toggle-track">
+                <span className="moderation-toggle-thumb" />
+              </span>
+            </button>
+          </label>
+
           <label className="eli-panel-row">
             <span>Moderation</span>
             <button
