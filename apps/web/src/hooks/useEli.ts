@@ -14,6 +14,7 @@ interface UseEliOptions {
 interface AskEliOptions {
   moderationMode?: boolean;
   insights?: Insight[];
+  maxSentences?: number;
 }
 
 export function useEli({ onChunk, onComplete, onRetry }: UseEliOptions) {
@@ -50,6 +51,7 @@ export function useEli({ onChunk, onComplete, onRetry }: UseEliOptions) {
             body: JSON.stringify({
               transcript: formatTranscriptForEli(transcript),
               moderationMode: options?.moderationMode ?? false,
+              maxSentences: options?.maxSentences ?? 5,
               insights: options?.insights?.map((i) => ({
                 speakers: i.speakers,
                 type: i.type,

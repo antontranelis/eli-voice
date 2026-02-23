@@ -4,7 +4,7 @@ import { streamEliResponse } from "../services/claude.js";
 const router = Router();
 
 router.post("/eli", async (req: Request, res: Response) => {
-  const { transcript, moderationMode, insights } = req.body;
+  const { transcript, moderationMode, maxSentences, insights } = req.body;
 
   if (!transcript) {
     res.status(400).json({ error: "transcript required" });
@@ -19,6 +19,7 @@ router.post("/eli", async (req: Request, res: Response) => {
   try {
     for await (const chunk of streamEliResponse(transcript, {
       moderationMode,
+      maxSentences,
       insights,
     })) {
       if (typeof chunk === "string") {

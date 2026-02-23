@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { Insight, InsightType } from "../lib/transcript";
 
-export function useInsights() {
-  const [insights, setInsights] = useState<Insight[]>([]);
+export function useInsights(initialInsights?: Insight[]) {
+  const [insights, setInsights] = useState<Insight[]>(initialInsights ?? []);
   const [isExtracting, setIsExtracting] = useState(false);
-  const counterRef = useRef(0);
+  const counterRef = useRef(initialInsights?.length ?? 0);
   const insightsRef = useRef(insights);
   insightsRef.current = insights;
 

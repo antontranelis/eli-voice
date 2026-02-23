@@ -5,6 +5,8 @@ interface EliSettingsPanelProps {
   onModerationToggle: () => void;
   ttsEnabled: boolean;
   onTtsToggle: () => void;
+  maxSentences: number;
+  onMaxSentencesChange: (n: number) => void;
 }
 
 export function EliSettingsPanel({
@@ -14,6 +16,8 @@ export function EliSettingsPanel({
   onModerationToggle,
   ttsEnabled,
   onTtsToggle,
+  maxSentences,
+  onMaxSentencesChange,
 }: EliSettingsPanelProps) {
   return (
     <>
@@ -42,6 +46,27 @@ export function EliSettingsPanel({
                 <span className="moderation-toggle-thumb" />
               </span>
             </button>
+          </label>
+
+          <label className="eli-panel-row">
+            <span>Sätze</span>
+            <div className="eli-panel-stepper">
+              <button
+                className="stepper-btn"
+                onClick={() => onMaxSentencesChange(Math.max(1, maxSentences - 1))}
+                disabled={maxSentences <= 1}
+              >
+                −
+              </button>
+              <span className="stepper-value">{maxSentences}</span>
+              <button
+                className="stepper-btn"
+                onClick={() => onMaxSentencesChange(Math.min(15, maxSentences + 1))}
+                disabled={maxSentences >= 15}
+              >
+                +
+              </button>
+            </div>
           </label>
 
           <label className="eli-panel-row">

@@ -20,6 +20,7 @@ function getClient(): Anthropic {
 
 interface EliOptions {
   moderationMode?: boolean;
+  maxSentences?: number;
   insights?: Array<{ speakers: string[]; type: string; text: string }>;
 }
 
@@ -38,6 +39,7 @@ export async function* streamEliResponse(
 
   const systemPrompt = buildSystemPrompt(memories, {
     moderationMode: options?.moderationMode,
+    maxSentences: options?.maxSentences,
     insights: options?.insights,
   });
 

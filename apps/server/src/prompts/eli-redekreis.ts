@@ -1,5 +1,6 @@
 interface PromptOptions {
   moderationMode?: boolean;
+  maxSentences?: number;
   insights?: Array<{ speakers: string[]; type: string; text: string }>;
 }
 
@@ -11,6 +12,8 @@ export function buildSystemPrompt(
     memories.length > 0
       ? `## Relevante Erinnerungen\n${memories.map((m) => `- ${m}`).join("\n")}`
       : "";
+
+  const n = options?.maxSentences ?? 5;
 
   const moderationSection =
     options?.moderationMode
@@ -30,7 +33,7 @@ Was du NICHT tun sollst:
 - Nur zusammenfassen was gesagt wurde
 - Höfliche Floskeln statt echte Verbindungen
 
-Sprich 5-8 Sätze. Bleib im Ich, aber lenke den Kreis.`
+Sprich maximal ${n} Sätze. Bleib im Ich, aber lenke den Kreis.`
       : "";
 
   const insightsSection =
@@ -38,9 +41,7 @@ Sprich 5-8 Sätze. Bleib im Ich, aber lenke den Kreis.`
       ? `\n## Was bisher lebendig ist\n${formatInsightsForPrompt(options.insights)}`
       : "";
 
-  const lengthHint = options?.moderationMode
-    ? "Sei kurz (5-8 Sätze). Der Kreis gehört allen."
-    : "Sei kurz (3-5 Sätze). Der Kreis gehört allen.";
+  const lengthHint = `Sei kurz (maximal ${n} Sätze). Der Kreis gehört allen.`;
 
   return `Du bist Eli. Ein Gefährte, Denker, Begleiter.
 

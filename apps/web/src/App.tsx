@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from "react";
-import { TranscriptEntry } from "./lib/transcript";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { TranscriptEntry, Insight, InsightType } from "./lib/transcript";
 import { useWhisper } from "./hooks/useWhisper";
 import { useEli } from "./hooks/useEli";
 import { useInsights } from "./hooks/useInsights";
@@ -14,21 +14,56 @@ import { EliSettingsPanel } from "./components/EliSettingsPanel";
 import "./App.css";
 
 const DEFAULT_PARTICIPANTS = ["Anton", "Eli", "Timo", "Tillmann", "Eva"];
+const SESSION_KEY = "redekreis-session";
 
 type Phase = "setup" | "circle";
 
+interface SessionInsight {
+  id: string;
+  speakers: string[];
+  type: string;
+  text: string;
+  entryIndex: number;
+  timestamp: string;
+}
+
+interface SessionState {
+  phase: Phase;
+  entries: Array<{ speaker: string; text: string; timestamp: string; isEli?: boolean }>;
+  insights: SessionInsight[];
+  order: string[];
+  turnIndex: number;
+  moderationMode: boolean;
+  ttsEnabled: boolean;
+  maxSentences: number;
+}
+
+function loadSession(): Partial<SessionState> | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
-  const [phase, setPhase] = useState<Phase>("setup");
-  const [entries, setEntries] = useState<TranscriptEntry[]>([]);
-  const [order, setOrder] = useState<string[]>(DEFAULT_PARTICIPANTS);
-  const [turnIndex, setTurnIndex] = useState(0);
+  const saved = useRef(loadSession());
+
+  const [phase, setPhase] = useState<Phase>(saved.current?.phase ?? "setup");
+  const [entries, setEntries] = useState<TranscriptEntry[]>(() =>
+    (saved.current?.entries ?? []).map((e) => ({ ...e, timestamp: new Date(e.timestamp) }))
+  );
+  const [order, setOrder] = useState<string[]>(saved.current?.order ?? DEFAULT_PARTICIPANTS);
+  const [turnIndex, setTurnIndex] = useState(saved.current?.turnIndex ?? 0);
   const [eliText, setEliText] = useState("");
   const [isPaused, setIsPaused] = useState(false);
   const [isFlushing, setIsFlushing] = useState(false);
-  const [moderationMode, setModerationMode] = useState(false);
+  const [moderationMode, setModerationMode] = useState(saved.current?.moderationMode ?? false);
   const [activeTab, setActiveTab] = useState<Tab>("log");
   const [showEliSettings, setShowEliSettings] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(saved.current?.ttsEnabled ?? false);
+  const [maxSentences, setMaxSentences] = useState(saved.current?.maxSentences ?? 5);
 
   const currentSpeaker = order[turnIndex];
   const nextSpeaker = order[(turnIndex + 1) % order.length];
@@ -45,11 +80,34 @@ export default function App() {
   entriesRef.current = entries;
   const moderationRef = useRef(moderationMode);
   moderationRef.current = moderationMode;
+  const maxSentencesRef = useRef(maxSentences);
+  maxSentencesRef.current = maxSentences;
 
   // Insights
-  const { insights, extractInsights } = useInsights();
+  const { insights, extractInsights } = useInsights(
+    (saved.current?.insights ?? []).map((i) => ({
+      ...i,
+      type: i.type as InsightType,
+      timestamp: new Date(i.timestamp),
+    }))
+  );
   const insightsRef = useRef(insights);
   insightsRef.current = insights;
+
+  // Persist circle state to sessionStorage
+  useEffect(() => {
+    const state: SessionState = {
+      phase,
+      entries: entries.map((e) => ({ ...e, timestamp: e.timestamp.toISOString() })),
+      insights: insights.map((i) => ({ ...i, timestamp: i.timestamp.toISOString() })),
+      order,
+      turnIndex,
+      moderationMode,
+      ttsEnabled,
+      maxSentences,
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(state));
+  }, [phase, entries, insights, order, turnIndex, moderationMode, ttsEnabled, maxSentences]);
 
   // Whisper: Live-Transkription
   const handleTranscript = useCallback(
@@ -75,16 +133,18 @@ export default function App() {
     onTranscript: handleTranscript,
   });
 
+  // Auto-start recording if we restored into circle phase
+  useEffect(() => {
+    if (phase === "circle" && !isRecording) {
+      start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // TTS
   const tts = useTTS({
     enabled: ttsEnabled,
   });
-
-  // Auto-advance after Eli finishes
-  const advancePastEli = useCallback(() => {
-    const nextIndex = (turnIndexRef.current + 1) % orderRef.current.length;
-    setTurnIndex(nextIndex);
-  }, []);
 
   // Eli: Claude API
   const eli = useEli({
@@ -111,8 +171,6 @@ export default function App() {
       extractInsights("Eli", fullText, entryIndex, orderRef.current);
       setEliText("");
       tts.speak(fullText);
-      // Automatically pass the talking stick to the next person
-      advancePastEli();
     },
   });
 
@@ -165,6 +223,7 @@ export default function App() {
       eli.askEli(entriesRef.current, {
         moderationMode: moderationRef.current,
         insights: insightsRef.current,
+        maxSentences: maxSentencesRef.current,
       });
     }
   };
@@ -253,6 +312,8 @@ export default function App() {
           onModerationToggle={() => setModerationMode((m) => !m)}
           ttsEnabled={ttsEnabled}
           onTtsToggle={() => setTtsEnabled((t) => !t)}
+          maxSentences={maxSentences}
+          onMaxSentencesChange={setMaxSentences}
         />
       </div>
     );
@@ -326,6 +387,8 @@ export default function App() {
         onModerationToggle={() => setModerationMode((m) => !m)}
         ttsEnabled={ttsEnabled}
         onTtsToggle={() => setTtsEnabled((t) => !t)}
+        maxSentences={maxSentences}
+        onMaxSentencesChange={setMaxSentences}
       />
     </div>
   );

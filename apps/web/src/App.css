@@ -51,8 +51,6 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-width: 1200px;
-  margin: 0 auto;
 }
 
 /* Circle phase: side-by-side layout */
@@ -297,6 +295,7 @@ main {
   border-left: 3px solid var(--border);
   border-radius: 0 8px 8px 0;
   background: var(--bg-light);
+  max-width: 800px;
 }
 
 .transcript-entry.eli {
@@ -666,13 +665,11 @@ footer {
   opacity: 0.5;
 }
 
-/* Mindmap Body — fullscreen, break out of max-width */
+/* Mindmap Body */
 .mindmap-body {
   flex: 1;
   min-height: 0;
   display: flex;
-  width: 100vw;
-  margin-left: calc(-50vw + 50%);
   overflow: hidden;
 }
 
@@ -852,6 +849,11 @@ footer {
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
+  margin-bottom: 0.6rem;
+}
+
+.eli-panel-row:last-child {
+  margin-bottom: 0;
 }
 
 .eli-panel-row span {
@@ -895,6 +897,46 @@ footer {
 .moderation-toggle-mini.active .moderation-toggle-thumb {
   transform: translateX(12px);
   background: var(--text);
+}
+
+.eli-panel-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.stepper-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.stepper-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.stepper-value {
+  min-width: 1.4rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text) !important;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Expanded insight leaf */
