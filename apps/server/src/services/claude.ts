@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   buildSystemPrompt,
   buildInsightExtractionPrompt,
+  buildDistillationPrompt,
 } from "../prompts/eli-redekreis.js";
 import { searchMemories } from "./memory.js";
 import { compressTranscript } from "./context.js";
@@ -118,5 +119,49 @@ export async function extractInsights(
   } catch (err) {
     console.error("Insight extraction failed:", err);
     return [];
+  }
+}
+
+export async function distillInsights(
+  insights: Array<{ id: string; speakers: string[]; type: string; text: string }>,
+  participants: string[]
+): Promise<Array<{ id: string; speakers: string[]; type: string; text: string }>> {
+  if (insights.length <= 3) return insights; // Nothing to distill
+
+  const anthropic = getClient();
+
+  try {
+    const prompt = buildDistillationPrompt(insights, participants);
+    console.log(`[Distill] ${insights.length} Insights → destilliere...`);
+
+    const response = await anthropic.messages.create({
+      model: FAST_MODEL,
+      max_tokens: 1024,
+      system: prompt,
+      messages: [
+        {
+          role: "user",
+          content: "Verdichte diese Insights jetzt.",
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== "text") return insights;
+
+    let jsonStr = content.text.trim();
+    if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    }
+
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed.insights) && parsed.insights.length > 0) {
+      console.log(`[Distill] ${insights.length} → ${parsed.insights.length} Insights`);
+      return parsed.insights;
+    }
+    return insights;
+  } catch (err) {
+    console.error("Distillation failed:", err);
+    return insights; // Return originals on failure
   }
 }

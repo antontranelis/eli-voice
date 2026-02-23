@@ -82,5 +82,50 @@ export function useInsights(initialInsights?: Insight[]) {
     []
   );
 
-  return { insights, isExtracting, extractInsights };
+  const distillInsights = useCallback(
+    async (participants: string[]) => {
+      const current = insightsRef.current;
+      if (current.length <= 3) return; // Nothing to distill
+
+      try {
+        const res = await fetch("/api/insights/distill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            insights: current.map((i) => ({
+              id: i.id,
+              speakers: i.speakers,
+              type: i.type,
+              text: i.text,
+            })),
+            participants,
+          }),
+        });
+        const data = await res.json();
+        if (data.insights?.length) {
+          // Replace insights with distilled version, preserving entryIndex/timestamp from originals where possible
+          const distilled: Insight[] = data.insights.map(
+            (d: { id: string; speakers: string[]; type: InsightType; text: string }) => {
+              const existing = current.find((e) => e.id === d.id);
+              return {
+                id: d.id,
+                speakers: d.speakers,
+                type: d.type,
+                text: d.text,
+                entryIndex: existing?.entryIndex ?? 0,
+                timestamp: existing?.timestamp ?? new Date(),
+              };
+            }
+          );
+          counterRef.current = distilled.length;
+          setInsights(distilled);
+        }
+      } catch (err) {
+        console.error("Distillation failed:", err);
+      }
+    },
+    []
+  );
+
+  return { insights, isExtracting, extractInsights, distillInsights };
 }

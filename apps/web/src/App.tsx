@@ -11,6 +11,7 @@ import { PlayPauseButton } from "./components/PlayPauseButton";
 import { InsightMindmap } from "./components/InsightMindmap";
 import { TabNav, Tab } from "./components/TabNav";
 import { EliSettingsPanel } from "./components/EliSettingsPanel";
+import { EndCircleDialog } from "./components/EndCircleDialog";
 import "./App.css";
 
 const DEFAULT_PARTICIPANTS = ["Anton", "Eli", "Timo", "Tillmann", "Eva"];
@@ -64,6 +65,8 @@ export default function App() {
   const [showEliSettings, setShowEliSettings] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(saved.current?.ttsEnabled ?? false);
   const [maxSentences, setMaxSentences] = useState(saved.current?.maxSentences ?? 5);
+  const [showEndCircle, setShowEndCircle] = useState(false);
+  const [isEndingSaving, setIsEndingSaving] = useState(false);
 
   const currentSpeaker = order[turnIndex];
   const nextSpeaker = order[(turnIndex + 1) % order.length];
@@ -84,7 +87,7 @@ export default function App() {
   maxSentencesRef.current = maxSentences;
 
   // Insights
-  const { insights, extractInsights } = useInsights(
+  const { insights, extractInsights, distillInsights } = useInsights(
     (saved.current?.insights ?? []).map((i) => ({
       ...i,
       type: i.type as InsightType,
@@ -218,6 +221,11 @@ export default function App() {
     const nextIndex = (turnIndexRef.current + 1) % orderRef.current.length;
     setTurnIndex(nextIndex);
 
+    // Distill insights when a full round completes
+    if (nextIndex === 0) {
+      distillInsights(orderRef.current);
+    }
+
     if (orderRef.current[nextIndex] === "Eli") {
       setEliText("");
       eli.askEli(entriesRef.current, {
@@ -240,6 +248,93 @@ export default function App() {
       stop();
       setIsPaused(true);
     }
+  };
+
+  // Kreis beenden
+  const generateMarkdown = (): string => {
+    const date = new Date().toLocaleDateString("de-DE", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    const TYPE_LABELS: Record<string, string> = {
+      commitment: "Vorhaben",
+      vision: "Vision",
+      offer: "Angebot",
+      question: "Frage",
+      observation: "Erkenntnis",
+    };
+
+    let md = `# Redekreis — ${date}\n\n`;
+    md += `**Teilnehmer:** ${order.join(", ")}\n\n`;
+    md += `---\n\n## Transkript\n\n`;
+
+    for (const e of entries) {
+      const time = e.timestamp.toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      md += `**${e.speaker}** (${time}):\n${e.text}\n\n`;
+    }
+
+    if (insights.length > 0) {
+      md += `---\n\n## Insights\n\n`;
+      for (const i of insights) {
+        md += `- **${TYPE_LABELS[i.type] || i.type}** (${i.speakers.join(", ")}): ${i.text}\n`;
+      }
+    }
+
+    return md;
+  };
+
+  const handleEndCircle = async (selectedInsightIds: string[]) => {
+    setIsEndingSaving(true);
+
+    // 1. Save selected insights as Eli memories
+    const selectedInsights = insights.filter((i) =>
+      selectedInsightIds.includes(i.id)
+    );
+
+    if (selectedInsights.length > 0) {
+      try {
+        await fetch("/api/circle/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            insights: selectedInsights.map((i) => ({
+              speakers: i.speakers,
+              type: i.type,
+              text: i.text,
+            })),
+            participants: order,
+            date: new Date().toISOString().slice(0, 10),
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to save memories:", err);
+      }
+    }
+
+    // 2. Generate and download markdown
+    const md = generateMarkdown();
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `redekreis-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // 3. Clean up
+    stop();
+    sessionStorage.removeItem(SESSION_KEY);
+    setShowEndCircle(false);
+    setIsEndingSaving(false);
+    setPhase("setup");
+    setEntries([]);
+    setTurnIndex(0);
+    setEliText("");
+    setIsPaused(false);
   };
 
   // Reorder during circle — turnIndex follows the current speaker
@@ -378,7 +473,23 @@ export default function App() {
           isFlushing={isFlushing}
           onNext={handleNext}
         />
+        <button
+          className="btn btn-end-circle-trigger"
+          onClick={() => setShowEndCircle(true)}
+        >
+          Kreis beenden
+        </button>
       </footer>
+
+      <EndCircleDialog
+        open={showEndCircle}
+        onClose={() => setShowEndCircle(false)}
+        onConfirm={handleEndCircle}
+        entries={entries}
+        insights={insights}
+        participants={order}
+        isSaving={isEndingSaving}
+      />
 
       <EliSettingsPanel
         open={showEliSettings}

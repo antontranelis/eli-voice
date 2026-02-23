@@ -43,6 +43,29 @@ function getClient(): ChromaClient {
   return client;
 }
 
+export async function saveMemory(text: string, metadata?: Record<string, string>): Promise<boolean> {
+  try {
+    const chromaClient = getClient();
+    const collection = await chromaClient.getOrCreateCollection({
+      name: "erinnerungen",
+      embeddingFunction,
+    });
+
+    const id = `redekreis-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await collection.add({
+      ids: [id],
+      documents: [text],
+      metadatas: [{ source: "redekreis", ...metadata }],
+    });
+
+    console.log(`[Memory] Saved: "${text.slice(0, 80)}..."`);
+    return true;
+  } catch (err) {
+    console.error("Memory save failed:", err);
+    return false;
+  }
+}
+
 export async function searchMemories(
   query: string,
   nResults: number = 5

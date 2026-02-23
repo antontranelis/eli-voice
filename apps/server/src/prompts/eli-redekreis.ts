@@ -115,17 +115,23 @@ Kategorien:
 - observation: Wichtige Beobachtungen, Erkenntnisse, emotionale Wahrheiten
 
 REGELN:
-- Maximal 2 Insights pro Beitrag. Weniger ist besser. Nur das Wesentlichste.
+- Maximal 1-2 Insights pro Beitrag. Weniger ist besser. Nur das Wesentlichste.
 - Jeder Insight-Text ist ein kurzer, allgemeiner Satz (NICHT aus Ich-Perspektive). Z.B. "Bauen gemeinsam eine neue Software", "Freut sich auf das Experiment"
 - Wenn nichts wirklich Neues oder Wesentliches gesagt wurde, gib ein leeres Array zurück.
 - Antworte NUR mit JSON.
 
-MERGING: Wenn der neue Beitrag im Kern dasselbe sagt wie ein bestehendes Insight (gleiches konkretes Thema, z.B. beide über "Software bauen" oder beide über "Zuhören"), gib "mergeWith": "id" an. Der Text wird dann zum bestehenden Insight gemerged und der neue Sprecher hinzugefügt. Nur bei klarer inhaltlicher Überschneidung — NICHT bei allgemeiner Nähe.
+MERGING — SEHR WICHTIG:
+Bevorzuge Merging gegenüber neuen Insights! Wenn der neue Beitrag thematisch zu einem bestehenden Insight passt, merge IMMER. Beispiele:
+- "Will rausgehen und spielen" + "Sieht eine Welt des Spiels" → mergen (gleiches Thema)
+- "Möchte Vertrauen aufbauen" + "Baut ein Netzwerk des Vertrauens" → mergen
+- "Will zuhören" + "Ist erstmal hier um zu beobachten" → mergen (gleiche Haltung)
 
-Wenn mergeWith angegeben wird, kannst du optional "text" mitgeben um den Text des gemergten Insights zu verbessern (allgemeiner formulieren, da es jetzt mehrere Sprecher betrifft).
+Nur wenn ein Beitrag etwas KOMPLETT NEUES bringt, erstelle ein neues Insight.
+
+Wenn mergeWith angegeben wird, formuliere den Text neu — allgemeiner, da es jetzt mehrere Sprecher betrifft.
 
 Format: { "insights": [{ "type": "...", "text": "...", "mergeWith": "id" }] }
-mergeWith ist optional — nur angeben wenn ein bestehendes Insight dasselbe konkrete Thema abdeckt.`;
+mergeWith ist optional — nur angeben wenn ein bestehendes Insight thematisch passt.`;
 
   const blocks: Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> = [
     { type: "text", text: staticPrompt, cache_control: { type: "ephemeral" } },
@@ -140,4 +146,35 @@ mergeWith ist optional — nur angeben wenn ein bestehendes Insight dasselbe kon
   }
 
   return blocks;
+}
+
+export function buildDistillationPrompt(
+  insights: Array<{ id: string; speakers: string[]; type: string; text: string }>,
+  participants: string[]
+): string {
+  const insightList = insights
+    .map((i) => `- [${i.id}] (${i.type}) ${i.speakers.join(", ")}: ${i.text}`)
+    .join("\n");
+
+  return `Du verdichtest die Insights eines Redekreises.
+
+Teilnehmer: ${participants.join(", ")}
+
+Aktuelle Insights:
+${insightList}
+
+Deine Aufgabe:
+1. MERGE: Insights die thematisch zusammengehören → zu einem stärkeren Insight zusammenfassen. Füge die Sprecher zusammen.
+2. ELEVATE: Wenn mehrere Insights aus verschiedenen Richtungen auf dasselbe zeigen → formuliere ein übergeordnetes Insight das die gemeinsame Essenz fasst.
+3. KEEP: Insights die einzigartig und wichtig sind, behalte unverändert.
+4. DROP: Insights die trivial, redundant oder nicht mehr relevant sind → entferne sie.
+
+REGELN:
+- Das Ergebnis soll WENIGER Insights haben als der Input (Verdichtung, nicht Aufblähung)
+- Jeder Text ist ein kurzer, allgemeiner Satz (nicht Ich-Perspektive)
+- Behalte die IDs der Insights die du behältst oder als Basis für Merges nimmst
+- Neue übergeordnete Insights bekommen neue IDs (z.B. "distilled-1")
+- Antworte NUR mit JSON
+
+Format: { "insights": [{ "id": "...", "speakers": ["..."], "type": "...", "text": "..." }] }`;
 }
