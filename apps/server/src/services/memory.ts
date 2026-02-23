@@ -1,6 +1,31 @@
-import { ChromaClient, DefaultEmbeddingFunction } from "chromadb";
+import { ChromaClient, type IEmbeddingFunction } from "chromadb";
+import { pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
 
-const embeddingFunction = new DefaultEmbeddingFunction();
+// Same model as Chroma's default: all-MiniLM-L6-v2 (384 dimensions)
+const MODEL = "Xenova/all-MiniLM-L6-v2";
+
+let embedder: FeatureExtractionPipeline | null = null;
+
+async function getEmbedder(): Promise<FeatureExtractionPipeline> {
+  if (!embedder) {
+    embedder = await pipeline("feature-extraction", MODEL, {
+      dtype: "fp32",
+    });
+  }
+  return embedder;
+}
+
+const embeddingFunction: IEmbeddingFunction = {
+  async generate(texts: string[]): Promise<number[][]> {
+    const model = await getEmbedder();
+    const results: number[][] = [];
+    for (const text of texts) {
+      const output = await model(text, { pooling: "mean", normalize: true });
+      results.push(Array.from(output.data as Float32Array));
+    }
+    return results;
+  },
+};
 
 let client: ChromaClient | null = null;
 
@@ -47,6 +72,10 @@ export async function searchMemories(
       }
     }
 
+    console.log(`[Memory] Query: "${query.slice(0, 80)}..." → ${results.length} Ergebnisse`);
+    if (results.length > 0) {
+      console.log(`[Memory] Erste Erinnerung: "${results[0].slice(0, 120)}..."`);
+    }
     return results.slice(0, nResults);
   } catch (err) {
     console.error("Memory search failed:", err);

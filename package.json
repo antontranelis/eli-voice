@@ -9,6 +9,6 @@
     "dev:server": "pnpm --filter @eli-voice/server dev"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": ["esbuild", "onnxruntime-node"]
   }
 }
