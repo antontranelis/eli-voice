@@ -116,22 +116,19 @@ Kategorien:
 
 REGELN:
 - Maximal 1-2 Insights pro Beitrag. Weniger ist besser. Nur das Wesentlichste.
-- Jeder Insight-Text ist ein kurzer, allgemeiner Satz (NICHT aus Ich-Perspektive). Z.B. "Bauen gemeinsam eine neue Software", "Freut sich auf das Experiment"
+- Jeder Insight-Text ist ein kurzer, konkreter Satz (NICHT aus Ich-Perspektive). Nah am Gesagten bleiben! Z.B. "Sieht Spiel als Brücke in die Welt", "Schweigt weil es nur ein Test ist"
 - Wenn nichts wirklich Neues oder Wesentliches gesagt wurde, gib ein leeres Array zurück.
 - Antworte NUR mit JSON.
 
-MERGING — SEHR WICHTIG:
-Bevorzuge Merging gegenüber neuen Insights! Wenn der neue Beitrag thematisch zu einem bestehenden Insight passt, merge IMMER. Beispiele:
-- "Will rausgehen und spielen" + "Sieht eine Welt des Spiels" → mergen (gleiches Thema)
-- "Möchte Vertrauen aufbauen" + "Baut ein Netzwerk des Vertrauens" → mergen
-- "Will zuhören" + "Ist erstmal hier um zu beobachten" → mergen (gleiche Haltung)
-
-Nur wenn ein Beitrag etwas KOMPLETT NEUES bringt, erstelle ein neues Insight.
-
-Wenn mergeWith angegeben wird, formuliere den Text neu — allgemeiner, da es jetzt mehrere Sprecher betrifft.
+MERGING:
+Wenn jemand wirklich dasselbe Thema aufgreift wie ein bestehendes Insight, kannst du mergen (mergeWith). Aber:
+- Nur mergen wenn es wirklich dasselbe ist, nicht bei thematischer Nähe
+- Den Text beim Merge konkret lassen — nicht abstrakt umformulieren
+- Verschiedene Aussagen verschiedener Personen sind verschiedene Insights — das ist okay
+- Im Zweifel: lieber ein neues Insight als ein erzwungener Merge
 
 Format: { "insights": [{ "type": "...", "text": "...", "mergeWith": "id" }] }
-mergeWith ist optional — nur angeben wenn ein bestehendes Insight thematisch passt.`;
+mergeWith ist optional — nur angeben wenn ein bestehendes Insight wirklich dasselbe sagt.`;
 
   const blocks: Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> = [
     { type: "text", text: staticPrompt, cache_control: { type: "ephemeral" } },
@@ -156,7 +153,7 @@ export function buildDistillationPrompt(
     .map((i) => `- [${i.id}] (${i.type}) ${i.speakers.join(", ")}: ${i.text}`)
     .join("\n");
 
-  return `Du verdichtest die Insights eines Redekreises.
+  return `Du pflegst die Insights eines Redekreises. Ziel: Duplikate entfernen, Qualität bewahren.
 
 Teilnehmer: ${participants.join(", ")}
 
@@ -164,16 +161,18 @@ Aktuelle Insights:
 ${insightList}
 
 Deine Aufgabe:
-1. MERGE: Insights die thematisch zusammengehören → zu einem stärkeren Insight zusammenfassen. Füge die Sprecher zusammen.
-2. ELEVATE: Wenn mehrere Insights aus verschiedenen Richtungen auf dasselbe zeigen → formuliere ein übergeordnetes Insight das die gemeinsame Essenz fasst.
-3. KEEP: Insights die einzigartig und wichtig sind, behalte unverändert.
-4. DROP: Insights die trivial, redundant oder nicht mehr relevant sind → entferne sie.
+1. DROP — NUR Insights entfernen die ein echtes Duplikat eines anderen sind (fast identischer Inhalt) oder substanzlose Floskeln. Emotionale Aussagen, persönliches Erleben, Unbehagen, Wünsche — das sind KEINE Floskeln und dürfen nicht entfernt werden.
+2. MERGE — Wenn zwei Insights wirklich dasselbe sagen, zusammenführen. Sprecher zusammenlegen. Cross-Person-Insights sind willkommen wenn sie natürlich entstehen — aber nicht erzwingen.
+3. KEEP — Alles andere bleibt. Im Zweifel behalten!
+
+WICHTIG:
+- Texte bleiben konkret und nah am Gesagten — keine Abstraktion. Gut: Was jemand wirklich gesagt oder gemeint hat. Schlecht: Meta-Zusammenfassungen über den Kreis als Ganzes.
+- Nicht abstrahieren, nicht zu Meta-Insights verschmelzen
+- Mehrere Insights pro Person sind normal — ein langer Kreis hat viele Themen
 
 REGELN:
-- Das Ergebnis soll WENIGER Insights haben als der Input (Verdichtung, nicht Aufblähung)
-- Jeder Text ist ein kurzer, allgemeiner Satz (nicht Ich-Perspektive)
+- Kurzer Satz, nicht Ich-Perspektive
 - Behalte die IDs der Insights die du behältst oder als Basis für Merges nimmst
-- Neue übergeordnete Insights bekommen neue IDs (z.B. "distilled-1")
 - Antworte NUR mit JSON
 
 Format: { "insights": [{ "id": "...", "speakers": ["..."], "type": "...", "text": "..." }] }`;

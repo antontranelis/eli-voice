@@ -78,13 +78,17 @@ export function EndCircleDialog({
                     checked={selected.has(insight.id)}
                     onChange={() => toggle(insight.id)}
                   />
-                  <span className={`insight-badge ${insight.type}`}>
-                    {TYPE_LABELS[insight.type] || insight.type}
-                  </span>
-                  <span className="end-circle-insight-speakers">
-                    {insight.speakers.join(", ")}
-                  </span>
-                  <span className="end-circle-insight-text">{insight.text}</span>
+                  <div className="end-circle-insight-content">
+                    <div className="end-circle-insight-header">
+                      <span className={`insight-badge ${insight.type}`}>
+                        {TYPE_LABELS[insight.type] || insight.type}
+                      </span>
+                      <span className="end-circle-insight-speakers">
+                        {insight.speakers.join(", ")}
+                      </span>
+                    </div>
+                    <span className="end-circle-insight-text">{insight.text}</span>
+                  </div>
                 </label>
               ))}
             </div>

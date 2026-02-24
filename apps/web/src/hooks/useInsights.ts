@@ -127,5 +127,10 @@ export function useInsights(initialInsights?: Insight[]) {
     []
   );
 
-  return { insights, isExtracting, extractInsights, distillInsights };
+  const resetInsights = useCallback(() => {
+    setInsights([]);
+    counterRef.current = 0;
+  }, []);
+
+  return { insights, isExtracting, extractInsights, distillInsights, resetInsights };
 }

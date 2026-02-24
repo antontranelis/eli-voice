@@ -87,7 +87,7 @@ export default function App() {
   maxSentencesRef.current = maxSentences;
 
   // Insights
-  const { insights, extractInsights, distillInsights } = useInsights(
+  const { insights, extractInsights, distillInsights, resetInsights } = useInsights(
     (saved.current?.insights ?? []).map((i) => ({
       ...i,
       type: i.type as InsightType,
@@ -269,12 +269,21 @@ export default function App() {
     md += `**Teilnehmer:** ${order.join(", ")}\n\n`;
     md += `---\n\n## Transkript\n\n`;
 
-    for (const e of entries) {
-      const time = e.timestamp.toLocaleTimeString("de-DE", {
+    // Group consecutive entries by same speaker into turns
+    let i = 0;
+    while (i < entries.length) {
+      const speaker = entries[i].speaker;
+      const time = entries[i].timestamp.toLocaleTimeString("de-DE", {
         hour: "2-digit",
         minute: "2-digit",
       });
-      md += `**${e.speaker}** (${time}):\n${e.text}\n\n`;
+      const texts: string[] = [entries[i].text];
+      while (i + 1 < entries.length && entries[i + 1].speaker === speaker) {
+        i++;
+        texts.push(entries[i].text);
+      }
+      md += `**${speaker}** (${time}):\n${texts.join(" ")}\n\n`;
+      i++;
     }
 
     if (insights.length > 0) {
@@ -332,6 +341,7 @@ export default function App() {
     setIsEndingSaving(false);
     setPhase("setup");
     setEntries([]);
+    resetInsights();
     setTurnIndex(0);
     setEliText("");
     setIsPaused(false);
@@ -419,7 +429,18 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Redekreis</h1>
-        <PlayPauseButton isPaused={isPaused} isFlushing={isFlushing} onClick={handlePause} />
+        <div className="header-actions">
+          <PlayPauseButton isPaused={isPaused} isFlushing={isFlushing} onClick={handlePause} />
+          <button
+            className="btn-stop"
+            onClick={() => setShowEndCircle(true)}
+            title="Kreis beenden"
+          >
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
+              <rect x="2" y="2" width="12" height="12" rx="2" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <div className="circle-phase-body">
@@ -473,12 +494,6 @@ export default function App() {
           isFlushing={isFlushing}
           onNext={handleNext}
         />
-        <button
-          className="btn btn-end-circle-trigger"
-          onClick={() => setShowEndCircle(true)}
-        >
-          Kreis beenden
-        </button>
       </footer>
 
       <EndCircleDialog

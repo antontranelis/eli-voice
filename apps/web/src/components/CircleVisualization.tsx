@@ -64,6 +64,7 @@ export function CircleVisualization({
 
   const staffPos = activeIndex >= 0 && activeIndex < n ? positions[activeIndex] : null;
 
+  // Click on a node: swap positions
   const handleNodeClick = (index: number) => {
     if (!onReorder) return;
     if (selectedForSwap === null) {
@@ -76,6 +77,17 @@ export function CircleVisualization({
       }
       setSelectedForSwap(null);
     }
+  };
+
+  // Click on gap between nodes: insert selected person at that position
+  const handleGapClick = (insertBefore: number) => {
+    if (selectedForSwap === null || !onReorder) return;
+    const newOrder = [...participants];
+    const [moved] = newOrder.splice(selectedForSwap, 1);
+    const insertAt = insertBefore > selectedForSwap ? insertBefore - 1 : insertBefore;
+    newOrder.splice(insertAt, 0, moved);
+    onReorder(newOrder);
+    setSelectedForSwap(null);
   };
 
   const handleAdd = () => {
@@ -133,6 +145,26 @@ export function CircleVisualization({
             </g>
           );
         })()}
+
+        {/* Gap zones between nodes — visible only when a node is selected */}
+        {selectedForSwap !== null && positions.map((pos, i) => {
+          const nextPos = positions[(i + 1) % n];
+          const midX = (pos.x + nextPos.x) / 2;
+          const midY = (pos.y + nextPos.y) / 2;
+          // Don't show gap adjacent to the selected node (inserting there = no-op)
+          const nextI = (i + 1) % n;
+          if (i === selectedForSwap || nextI === selectedForSwap) return null;
+          return (
+            <circle
+              key={`gap-${i}`}
+              className="insert-gap"
+              cx={midX}
+              cy={midY}
+              r={10}
+              onClick={() => handleGapClick(nextI)}
+            />
+          );
+        })}
 
         {/* Participant nodes */}
         {participants.map((name, i) => {
@@ -202,7 +234,7 @@ export function CircleVisualization({
         {/* Setup hint in center */}
         {mode === "setup" && (
           <text className="circle-hint" x={CX} y={CY} textAnchor="middle" dominantBaseline="central">
-            {selectedForSwap !== null ? "Tauschpartner wählen" : "Zum Tauschen antippen"}
+            {selectedForSwap !== null ? "Tauschen oder dazwischen setzen" : "Zum Umordnen antippen"}
           </text>
         )}
       </svg>
